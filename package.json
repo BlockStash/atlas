@@ -1,0 +1,21 @@
+{
+  "name": "atlas",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "setup": "npm install --prefix frontend && npm install --prefix backend && node scripts/setup.mjs",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "lint": "npm run lint --prefix frontend",
+    "test": "npm test --prefix backend && npm run test:wallet",
+    "test:smoke": "node scripts/smoke.mjs",
+    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" README.md",
+    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" README.md",
+    "test:wallet": "node --import ./backend/node_modules/tsx/dist/loader.mjs --test frontend/test/*.test.ts",
+    "arkiv:check": "npm run arkiv:check --prefix backend"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}
