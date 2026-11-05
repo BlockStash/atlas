@@ -5,8 +5,8 @@ import {
 } from "@arkiv-network/sdk";
 import { defineSchema, str, bytes } from "@arkiv-network/sdk/schema";
 import { and, eq } from "@arkiv-network/sdk/query";
-import { rabdi } from "@arkiv-network/sdk/chains";
-import { http, hexToBytes, type Hex } from "viem";
+import { hexToBytes, type Hex } from "viem";
+import { arkivConnection } from "./arkiv-connection.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { normalizeProfile } from "./profile-migrations.js";
 import { readFile } from "node:fs/promises";
@@ -23,6 +23,7 @@ const Profiles = defineSchema("atlas.profiles.v1", {
 });
 export interface ArkivStoreOptions {
   rpcUrl: string;
+  accessKey?: string;
   chainId: number;
   privateKey: string;
   signerAddress?: string;
@@ -50,20 +51,18 @@ export class ArkivProfileStore implements ProfileRepository {
           ? options.privateKey
           : `0x${options.privateKey}`) as Hex,
       ),
-      chain = rabdi({ accessKey: "" });
+      connection = arkivConnection(options);
     if (
       options.signerAddress &&
       account.address.toLowerCase() !== options.signerAddress.toLowerCase()
     )
       throw new Error("ARKIV_PRIVATE_KEY must match ARKIV_SIGNER_ADDRESS.");
     this.publicClient = createPublicClient({
-      chain,
-      transport: http(options.rpcUrl, { timeout: 15000, retryCount: 1 }),
+      ...connection,
     });
     this.walletClient = createWalletClient({
       account,
-      chain,
-      transport: http(options.rpcUrl, { timeout: 15000, retryCount: 1 }),
+      ...connection,
     });
     this.crypto = profileCrypto(options.encryptionKey, options.namespace);
     this.claims = new IdentityClaims(options.claimsFile);
@@ -233,11 +232,13 @@ export class ArkivProfileStore implements ProfileRepository {
     if (error instanceof VerificationError) return error;
     console.error(
       "[arkiv] profile operation failed:",
-      error instanceof Error ? error.message : error,
+      // SDK messages can contain the keyed RPC URL. Keep access keys and
+      // encrypted request payloads out of the application log.
+      error instanceof Error ? error.name : "Unknown error",
     );
     return new VerificationError(
       "ARKIV_UNAVAILABLE",
-      "Atlas could not save or load your Arkiv profile. Check the Rabdi connection, signer funding and encryption configuration.",
+      "Atlas could not save or load your Arkiv profile. Check the Rabdi connection and ARKIV_ACCESS_KEY, signer funding and encryption configuration, then connect again.",
       503,
     );
   }

@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import request from "supertest";
 import { Wallet } from "ethers";
 import { createApp, type AppOptions } from "../src/app.js";
+import { VerificationError } from "../src/world-id.js";
 let directory: string;
 const origin = "http://localhost:3000";
 before(async () => {
@@ -21,10 +22,59 @@ function setup(name: string, overrides: Partial<AppOptions> = {}) {
     demoWallet: true,
     demoWorldId: true,
     production: false,
+    portfolioRead: async (address) => ({
+      source: "sepolia",
+      address,
+      chainId: 11155111,
+      blockNumber: 1,
+      timestamp: 1800000000,
+      settlementToken: address,
+      vault: address,
+      tradingEngine: address,
+      walletUSDT: "0",
+      vaultShares: "0",
+      vaultAssets: "0",
+      walletETH: "0",
+      cashValueUSDT: "0",
+      stockValueUSDT: "0",
+      totalValueUSDT: "0",
+      positions: [],
+      history: [],
+    }),
     ...overrides,
   };
   return { app: createApp(options), options };
 }
+test("Arkiv failure during signed login returns a JSON error without issuing a session", async () => {
+  const unavailable = async (): Promise<never> => {
+    throw new VerificationError(
+      "ARKIV_UNAVAILABLE",
+      "Arkiv is temporarily unavailable. Connect again.",
+      503,
+    );
+  };
+  const { app } = setup("arkiv-auth-failure", {
+    store: { get: unavailable, update: unavailable },
+  });
+  const agent = request.agent(app),
+    wallet = Wallet.createRandom();
+  const challenge = await agent
+    .post("/api/auth/challenge")
+    .send({ address: wallet.address })
+    .expect(200);
+  const signature = await wallet.signMessage(challenge.body.message);
+  const response = await agent
+    .post("/api/auth/verify")
+    .send({ address: wallet.address, signature })
+    .expect(503);
+  assert.equal(response.body.error.code, "ARKIV_UNAVAILABLE");
+  assert.equal(response.headers["set-cookie"], undefined);
+  await agent.get("/api/auth/session").expect(401);
+  await agent
+    .post("/api/auth/verify")
+    .send({ address: wallet.address, signature })
+    .expect(401);
+});
 test("wallet authentication verifies ownership, rejects replay and scopes preferences", async () => {
   const { app, options } = setup("auth");
   const agent = request.agent(app);
@@ -120,7 +170,11 @@ test("demo proof is server controlled and completion can follow verified proof",
     .send({ onboardingComplete: true, currentStep: 5 })
     .expect(200);
   const portfolio = await agent.get("/api/portfolio").expect(200);
-  assert.equal(portfolio.body.demo, true);
+  assert.equal(portfolio.body.source, "sepolia");
+  assert.equal(
+    portfolio.body.address.toLowerCase(),
+    (await agent.get("/api/auth/session")).body.wallet.address.toLowerCase(),
+  );
 });
 test("demo cannot be used in production or when disabled", async () => {
   for (const [name, overrides] of [
@@ -377,6 +431,25 @@ test("World ID refuses missing configuration, simulated wallets, foreign session
   const options = {
     demoEnabled: false,
     production: false,
+    portfolioRead: async (address) => ({
+      source: "sepolia",
+      address,
+      chainId: 11155111,
+      blockNumber: 1,
+      timestamp: 1800000000,
+      settlementToken: address,
+      vault: address,
+      tradingEngine: address,
+      walletUSDT: "0",
+      vaultShares: "0",
+      vaultAssets: "0",
+      walletETH: "0",
+      cashValueUSDT: "0",
+      stockValueUSDT: "0",
+      totalValueUSDT: "0",
+      positions: [],
+      history: [],
+    }),
     config,
     pending,
     address: wallet.address,
@@ -574,4 +647,29 @@ test("simulated crypto trades debit cash, track holdings and reject overspend", 
     .send({ selectedMarkets: ["crypto", "usa"] })
     .expect(200);
   assert.deepEqual(profile.body.selectedMarkets, ["crypto", "usa"]);
+});
+
+test("portfolio reads stay bound to the signed-in wallet rather than a supplied address", async () => {
+  const { app } = setup("portfolio-scope");
+  const agent = request.agent(app),
+    wallet = Wallet.createRandom(),
+    foreign = Wallet.createRandom();
+  const challenge = await agent
+    .post("/api/auth/challenge")
+    .send({ address: wallet.address })
+    .expect(200);
+  await agent
+    .post("/api/auth/verify")
+    .send({
+      address: wallet.address,
+      signature: await wallet.signMessage(challenge.body.message),
+    })
+    .expect(200);
+  const result = await agent
+    .get(`/api/portfolio?address=${foreign.address}`)
+    .expect(200);
+  assert.equal(result.body.address, wallet.address);
+  assert.equal(result.body.source, "sepolia");
+  assert.equal(result.body.totalValueUSDT, "0");
+  assert.deepEqual(result.body.positions, []);
 });

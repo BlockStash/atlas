@@ -2,7 +2,7 @@
 
 **Global Markets. One Wallet.**
 
-Atlas combines MetaMask authentication on **Sepolia**, **World ID 4.x IDKit** QR verification, **ENSjs** identity, and encrypted profile storage on **Arkiv Rabdi**. The current v2 protocol adds six-decimal demo USDT, an ERC-4626 vault and five upgradeable ERC-1155 market contracts holding 50 initial stock IDs. It supports new-stock onboarding, native/FX/USD-USDT pricing and reserve-funded trades. These are demo synthetic assets with no legal equity ownership. Existing illustrative dashboard cards are separate from the onchain Vault and Synthetic stocks pages.
+Atlas combines MetaMask authentication on **Sepolia**, **World ID 4.x IDKit** QR verification, **ENSjs** identity, and encrypted profile storage on **Arkiv Rabdi**. The current v2 protocol adds six-decimal demo USDT, an ERC-4626 vault and five upgradeable ERC-1155 market contracts holding 50 initial stock IDs. It supports new-stock onboarding, native/FX/USD-USDT pricing and reserve-funded trades. These are demo synthetic assets with no legal equity ownership. Dashboard, portfolio and wallet balances are read from the signed-in wallet’s Sepolia contracts.
 
 The v2 country architecture needs a new Sepolia deployment; existing per-stock ERC-20 contracts cannot be converted in place. Follow [the protocol guide](contracts/README.md). Existing deployments and holdings are preserved. Until a v2 manifest is configured, protocol pages display a setup message.
 
@@ -130,3 +130,11 @@ Automated tests cover authentication, World ID, ENS, encrypted profiles, exact p
 Profiles are stored encrypted in Arkiv when `PROFILE_STORE=arkiv`; `backend/data/profiles.json` remains the explicit local-development adapter and migration source. Identity replay claims use the durable SQLite ledger. Preferences are also mirrored to localStorage. Sessions and pending challenges are memory-resident and expire after 24 hours / five minutes respectively. Restarting the backend requires wallet sign-in again. Use a transactional database and shared sessions before running multiple backend instances.
 
 The old investor simulation remains available only if both frontend and backend demo flags are explicitly enabled in development. Simulated verification cannot enable the Sepolia transfer form. See [backend/README.md](backend/README.md) for the API contract.
+
+## Actual wallet portfolio
+
+The dashboard, My portfolio and Wallet pages use authenticated `/api/portfolio` reads from the configured v2 Sepolia deployment. They show actual wallet USDT, proportional vault claims, ERC-1155 stock quantities and test ETH. There is no sample ATLAS balance, sample portfolio total or generated performance chart. ETH is shown separately from the USDT total.
+
+All balances and quotes in a snapshot use one block. The page refreshes every 20 seconds, on window focus and after confirmed protocol transactions. The server uses a short wallet/deployment-scoped cache. If a quote expires or a stock is disabled, the quantity remains visible and the current stock/total valuation is marked unavailable. RPC failures show an error rather than fabricating zero balances.
+
+Historical account-value observations are stored in `backend/data/portfolio-history.sqlite` (override with `PORTFOLIO_HISTORY_FILE`). History starts with actual observations; old performance is not reconstructed or invented. Charts include deposits and transfers and are not investment-return calculations. World ID/passkey identity profiles remain in Arkiv.

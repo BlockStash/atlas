@@ -4,6 +4,10 @@ import { ArrowUpRight, Globe2, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { markets } from "@/lib/data";
 import type { MarketPreference } from "@/lib/types";
+import {
+  useStockSessions,
+  regionMarketState,
+} from "@/lib/protocol/stock-sessions";
 export function AtlasLogo({ compact = false }: { compact?: boolean }) {
   return (
     <Link href="/" className="brand" aria-label="Atlas home">
@@ -59,12 +63,22 @@ export function MarketClock({ market }: { market: MarketPreference }) {
   return <span className="mono">{time}</span>;
 }
 export function GlobalMarketClock() {
+  const { stocks } = useStockSessions();
+  const regions = ["india", "usa", "uk", "singapore", "europe"];
+  const known = regions.filter(
+    (r) => regionMarketState(stocks, r) !== "unknown",
+  );
+  const open = regions.filter((r) =>
+    ["open", "partial"].includes(regionMarketState(stocks, r)),
+  ).length;
   return (
     <div className="global-clock">
       <Globe2 size={15} />
       <span>Global market clock</span>
       <span className="status-dot" />
-      <span>3 / 5 open</span>
+      <span>
+        {known.length === 5 ? `${open} / 5 open` : "Checking exchange status…"}
+      </span>
     </div>
   );
 }
@@ -72,10 +86,12 @@ export function MarketCard({
   market,
   onClick,
   selected = false,
+  marketState,
 }: {
   market: MarketPreference;
   onClick?: () => void;
   selected?: boolean;
+  marketState?: "open" | "closed" | "partial" | "unknown";
 }) {
   return (
     <button
@@ -84,8 +100,18 @@ export function MarketCard({
     >
       <div className="market-card-top">
         <span className="flag">{market.flag}</span>
-        <span className={`market-status ${market.open ? "" : "closed"}`}>
-          {market.open ? "● OPEN" : "○ CLOSED"}
+        <span
+          className={`market-status ${marketState === "open" || market.id === "crypto" ? "" : "closed"}`}
+        >
+          {market.id === "crypto"
+            ? "● 24/7"
+            : marketState === "open"
+              ? "● OPEN"
+              : marketState === "closed"
+                ? "○ CLOSED"
+                : marketState === "partial"
+                  ? "◐ PARTLY OPEN"
+                  : "STATUS UNAVAILABLE"}
         </span>
       </div>
       <h3>

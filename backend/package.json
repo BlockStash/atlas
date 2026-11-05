@@ -11,6 +11,8 @@
     "test": "node --import tsx --test test/*.test.ts",
     "arkiv:check": "tsx scripts/arkiv-check.ts",
     "prices:update": "tsx scripts/update-country-prices.ts",
+    "prices:feed": "tsx scripts/stream-market-prices.ts",
+    "prices:check": "tsx scripts/update-country-prices.ts --check",
     "prices:update:legacy": "tsx scripts/update-prices.ts",
     "prices:watch": "tsx scripts/update-country-prices.ts --watch"
   },

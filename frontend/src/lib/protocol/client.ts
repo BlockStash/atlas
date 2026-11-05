@@ -232,6 +232,7 @@ export async function write(
   if (receipt.status !== "success")
     throw new Error("The transaction reverted.");
   onState({ state: "confirmed", hash: receipt.transactionHash });
+  window.dispatchEvent(new Event("atlas-protocol-updated"));
   return receipt;
 }
 export async function approve(

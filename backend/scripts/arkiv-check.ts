@@ -5,19 +5,18 @@ import {
   createWalletClient,
   ExpirationTime,
 } from "@arkiv-network/sdk";
-import { rabdi } from "@arkiv-network/sdk/chains";
+import { arkivConnection } from "../src/arkiv-connection.js";
 import { defineSchema, str, bytes } from "@arkiv-network/sdk/schema";
 import { eq } from "@arkiv-network/sdk/query";
-import { http, formatEther, hexToBytes, type Hex } from "viem";
+import { formatEther, hexToBytes, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { randomUUID } from "node:crypto";
 import { profileCrypto } from "../src/profile-crypto.js";
 async function main() {
-  const chain = rabdi({ accessKey: "" }),
-    transport = http(process.env.ARKIV_RPC_URL, {
-      timeout: 15000,
-      retryCount: 0,
-    });
+  const { chain, transport } = arkivConnection({
+    rpcUrl: process.env.ARKIV_RPC_URL,
+    accessKey: process.env.ARKIV_ACCESS_KEY,
+  });
   const reader = createPublicClient({ chain, transport });
   assert.equal(await reader.getChainId(), Number(process.env.ARKIV_CHAIN_ID));
   const expected = process.env.ARKIV_SIGNER_ADDRESS as Hex;
@@ -97,6 +96,8 @@ async function main() {
   }
 }
 main().catch((error) => {
-  console.error(error instanceof Error ? error.message : "Arkiv check failed.");
+  console.error(
+    "Arkiv check failed. Check ARKIV_ACCESS_KEY, RPC connectivity and signer configuration.",
+  );
   process.exitCode = 1;
 });

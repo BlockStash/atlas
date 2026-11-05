@@ -18,6 +18,8 @@
     "protocol:test": "npm run test --prefix contracts",
     "protocol:analyze": "npm run analyze --prefix contracts",
     "prices:update": "npm run prices:update --prefix backend",
+    "prices:feed": "npm run prices:feed --prefix backend",
+    "prices:check": "npm run prices:check --prefix backend",
     "dev:admin": "npm run dev --prefix admin",
     "prices:watch": "npm run prices:watch --prefix backend",
     "upgrade:validate": "npm run upgrade:validate --prefix contracts",

@@ -1,0 +1,74 @@
+{
+  "stocks": [
+    {
+      "stockId": "0xb9490b9115049a246c59a3ba1a002ef373ffbf9c5467146611be91acf955be67",
+      "symbol": "AAPL",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": true
+    },
+    {
+      "stockId": "0x646d6af083c3a3e29b178160efda7a45a3df3d8057502c4cb964778362f29b8e",
+      "symbol": "MSFT",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0x911b2903e50729f34220642c817503b267a717eed30089ea8522e3a00687bc0a",
+      "symbol": "NVDA",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0xcd86b942eaa430e251daacea7f42f866a0d5df3a5003edcdc912d9e660e6798f",
+      "symbol": "AMZN",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0xa8ab336c87a1cab8b7ed5b9079ea14ace8bef03436c4f3435bdf67bf9d2dadd7",
+      "symbol": "GOOGL",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0xe8a9eb96c5ca418a1a90ab85c033952c41e77595f05f87a36c0f9290d03b531a",
+      "symbol": "META",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0x2ef63776ecb9ca8f8cce546960a151f130f1d26c6564f0c10542926b6f676213",
+      "symbol": "TSLA",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0x7732d80adfc163e224dd352a6ebba25f472089a75029fbfcadbc4a6c1602c79e",
+      "symbol": "JPM",
+      "exchange": "NYSE",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0xfcc495673e876c5068bda70671fab769fc41ba708c6202837045389c34df067a",
+      "symbol": "V",
+      "exchange": "NYSE",
+      "currency": "USD",
+      "stream": false
+    },
+    {
+      "stockId": "0xa8f465ed5adbe68f805441d802bfeeb42be415212382189097d7aabe3fc8d2c1",
+      "symbol": "NFLX",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "stream": false
+    }
+  ]
+}

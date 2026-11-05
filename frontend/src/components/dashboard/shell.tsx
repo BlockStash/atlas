@@ -88,12 +88,14 @@ export function DashboardShell({
         </nav>
         <div className="sidebar-bottom">
           <div className="demo-callout">
-            <span className="preview-tag">INVESTOR PREVIEW</span>
-            <h4>A world of possibilities.</h4>
-            <p>Explore your global investment experience.</p>
+            <span className="preview-tag">SEPOLIA WORKSPACE</span>
+            <h4>Your holdings, onchain.</h4>
+            <p>
+              Wallet balances and stock positions from your connected wallet.
+            </p>
             <span>
               <ShieldCheck size={13} />
-              Illustrative data · No real trading
+              Sepolia synthetic assets
             </span>
           </div>
           <button

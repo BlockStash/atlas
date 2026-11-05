@@ -74,7 +74,7 @@ if (!health.demo.wallet || !health.demo.worldId) {
     expected: 409,
   });
   assert.equal((await request("/auth/session")).wallet.address, signer.address);
-  assert.equal((await request("/portfolio")).demo, true);
+  assert.equal((await request("/portfolio")).source, "sepolia");
   await request("/auth/logout", { method: "POST", body: {} });
   await request("/portfolio", { expected: 401 });
   console.log(
@@ -115,8 +115,9 @@ assert.equal(session.profile.worldIdVerified, true);
 assert.equal(session.profile.preferredAsset, "ATLAS");
 assert.equal(session.profile.selectedMarkets.length, 5);
 const portfolio = await request("/portfolio");
-assert.equal(portfolio.totalValue, 42840.45);
-assert.equal(portfolio.balances.length, 2);
+assert.equal(portfolio.source, "sepolia");
+assert.ok(Array.isArray(portfolio.positions));
+assert.equal(typeof portfolio.walletUSDT, "string");
 const markets = await request("/markets");
 assert.equal(markets.markets.length, 5);
 await request("/auth/logout", { method: "POST", body: {} });

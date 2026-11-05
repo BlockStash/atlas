@@ -5,9 +5,57 @@ import catalog from "./catalog.json" with { type: "json" };
 import { PriceHistoryStore } from "./price-service.js";
 import { readCountryManifest, loadCountryCatalog } from "./country-catalog.js";
 import { observePrice } from "./observe-prices.js";
+import { referencePrices } from "./market-feed.js";
+import {
+  MarketStatusService,
+  readSessionSnapshot,
+  stockMarketStatus,
+} from "./stock-sessions.js";
 export function protocolRouter() {
   const router = Router();
   let history: PriceHistoryStore | undefined;
+  const marketStatus = new MarketStatusService();
+  router.get("/stock-sessions", async (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      const data = readSessionSnapshot();
+      const status = await marketStatus.snapshot();
+      res.json({
+        ...data,
+        stocks: data.stocks.map((s) => ({
+          ...s,
+          market: stockMarketStatus(s.exchange, status),
+        })),
+      });
+    } catch {
+      res
+        .status(503)
+        .json({
+          error: {
+            code: "SESSION_REFERENCES_UNAVAILABLE",
+            message: "Historical stock references are temporarily unavailable.",
+          },
+        });
+    }
+  });
+  router.get("/market-prices", (_req, res) => {
+    res.set("Cache-Control", "no-store");
+    try {
+      res.json({
+        prices: referencePrices(
+          resolve(
+            process.env.MARKET_FEED_CACHE_FILE || "data/market-feed.json",
+          ),
+        ),
+      });
+    } catch {
+      res.json({
+        prices: [],
+        warning:
+          "Provider reference prices are unavailable. Check the price-feed worker.",
+      });
+    }
+  });
   router.get("/config", async (_req, res) => {
     try {
       const config = await readCountryManifest();

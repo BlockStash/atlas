@@ -13,7 +13,9 @@ import {
   normalizeSnapshot,
   PriceHistoryStore,
 } from "../src/protocol/price-service.js";
+import { StreamingPriceProvider } from "../src/protocol/market-feed.js";
 async function publish() {
+  const checkOnly = process.argv.includes("--check");
   const raw = JSON.parse(
     await readFile(
       resolve(
@@ -39,41 +41,97 @@ async function publish() {
     const local =
       raw.chainId === 31337 &&
       process.env.PRICE_UPDATER_UNLOCKED_LOCAL === "true";
-    if (!local && !process.env.PRICE_UPDATER_PRIVATE_KEY)
+    if (!checkOnly && !local && !process.env.PRICE_UPDATER_PRIVATE_KEY)
       throw Error("Configure a dedicated backend PRICE_UPDATER_PRIVATE_KEY.");
     if (local) provider.pollingInterval = 100;
-    const signer = new NonceManager(
-      local
-        ? await provider.getSigner(0)
-        : new Wallet(process.env.PRICE_UPDATER_PRIVATE_KEY!, provider),
-    );
-    const account = await signer.getAddress(),
+    const signer = checkOnly
+      ? undefined
+      : new NonceManager(
+          local
+            ? await provider.getSigner(0)
+            : new Wallet(process.env.PRICE_UPDATER_PRIVATE_KEY!, provider),
+        );
+    const account = signer ? await signer.getAddress() : undefined,
       catalog = await loadCountryCatalog(manifest, provider);
     const block = await provider.getBlock(
       Math.max(0, (await provider.getBlockNumber()) - 2),
     );
     if (!block) throw Error("Could not read a confirmed timestamp.");
+    const priceSource = process.env.PRICE_SOURCE || "demo";
+    if (!["demo", "http", "twelvedata-kraken"].includes(priceSource))
+      throw Error("PRICE_SOURCE must be demo, http or twelvedata-kraken.");
     const source =
-      process.env.PRICE_SOURCE === "http"
-        ? new HttpPriceProvider(
-            process.env.PRICE_PROVIDER_URL || "",
-            process.env.PRICE_PROVIDER_TOKEN,
+      priceSource === "twelvedata-kraken"
+        ? new StreamingPriceProvider(
+            resolve(
+              process.env.MARKET_FEED_CACHE_FILE || "data/market-feed.json",
+            ),
+            catalog.stocks,
           )
-        : new DemoPriceProvider(block.timestamp, catalog.stocks);
+        : priceSource === "http"
+          ? new HttpPriceProvider(
+              process.env.PRICE_PROVIDER_URL || "",
+              process.env.PRICE_PROVIDER_TOKEN,
+            )
+          : new DemoPriceProvider(block.timestamp, catalog.stocks);
     const input = await source.snapshot();
+    if (checkOnly) {
+      for (const country of manifest.countries) {
+        const stockIds = new Set(
+          catalog.stocks
+            .filter((s) => s.region === country.region)
+            .map((s) => s.stockId),
+        );
+        const stocks = input.stocks.filter((s) => stockIds.has(s.stockId));
+        if (!stocks.length) {
+          console.log(
+            `${country.label}: no fresh configured stock observations.`,
+          );
+          continue;
+        }
+        const market = new Contract(
+          country.address,
+          abis.AtlasCountryMarket,
+          provider,
+        );
+        const normalized = normalizeSnapshot(
+          {
+            ...input,
+            stocks,
+            fx: input.fx.filter((f) => f.currency === country.currency),
+          },
+          Math.floor(Date.now() / 1000),
+          Number(await market.getFunction("maxPriceAge")()),
+          catalog.stocks,
+        );
+        for (const stock of normalized.stocks)
+          console.log(
+            `${country.label} ${stock.ticker}: ${stock.usdtPrice} (USDT price, 8 decimals); observed ${new Date(stock.timestamp * 1000).toISOString()}; expires ${new Date(stock.validUntil * 1000).toISOString()}`,
+          );
+      }
+      console.log("Read-only check complete. No transactions sent.");
+      return;
+    }
     const history = new PriceHistoryStore(
       resolve(process.env.PRICE_HISTORY_FILE || "data/prices.sqlite"),
     );
     try {
       for (const country of manifest.countries) {
+        const known = new Set(
+          catalog.stocks
+            .filter((s) => s.region === country.region && s.active)
+            .map((s) => s.stockId),
+        );
+        const countryStocks = input.stocks.filter((s) => known.has(s.stockId));
+        if (!countryStocks.length) continue;
         const market = new Contract(
           country.address,
           abis.AtlasCountryMarket,
-          signer,
+          signer!,
         );
         const owner = String(await market.getFunction("owner")());
         if (
-          owner.toLowerCase() !== account.toLowerCase() &&
+          owner.toLowerCase() !== account!.toLowerCase() &&
           !(await market.getFunction("hasRole")(
             id("PRICE_UPDATER_ROLE"),
             account,
@@ -84,7 +142,11 @@ async function publish() {
             `Signer is not authorized to publish ${country.label} prices.`,
           );
         const normalized = normalizeSnapshot(
-          input,
+          {
+            ...input,
+            stocks: countryStocks,
+            fx: input.fx.filter((f) => f.currency === country.currency),
+          },
           Math.max(
             Math.floor(Date.now() / 1000),
             (await provider.getBlock("latest"))!.timestamp,
@@ -92,12 +154,7 @@ async function publish() {
           Number(await market.getFunction("maxPriceAge")()),
           catalog.stocks,
         );
-        const known = new Set(
-          catalog.stocks
-            .filter((s) => s.region === country.region && s.active)
-            .map((s) => s.stockId),
-        );
-        let stocks = normalized.stocks.filter((s) => known.has(s.stockId));
+        let stocks = normalized.stocks;
         if (!stocks.length) continue;
         const fx = normalized.fx.find((f) => f.currency === country.currency);
         if (!fx) throw Error(`Missing ${country.currency} FX rate.`);
@@ -157,6 +214,14 @@ async function publish() {
   }
 }
 async function main() {
+  const interval = Number(process.env.PRICE_PUBLISH_INTERVAL_SECONDS || "60");
+  if (!Number.isSafeInteger(interval) || interval < 60 || interval > 3600) {
+    console.error(
+      "PRICE_PUBLISH_INTERVAL_SECONDS must be an integer between 60 and 3600.",
+    );
+    process.exitCode = 1;
+    return;
+  }
   do {
     try {
       await publish();
@@ -170,7 +235,7 @@ async function main() {
       }
     }
     if (!process.argv.includes("--watch")) return;
-    await new Promise((r) => setTimeout(r, 60000));
+    await new Promise((r) => setTimeout(r, interval * 1000));
   } while (true);
 }
 void main();

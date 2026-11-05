@@ -8,6 +8,36 @@ import { profileCrypto } from "../src/profile-crypto.js";
 import { IdentityClaims } from "../src/identity-claims.js";
 import { ArkivProfileStore } from "../src/arkiv-store.js";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
+import { arkivConnection } from "../src/arkiv-connection.js";
+
+test("Rabdi access key replaces the bare public URL and disables slow RPC retry chains", () => {
+  const connection = arkivConnection({
+    rpcUrl: "https://rpc.rabdi.db-chain.testnet.arkiv.network",
+    accessKey: "test/key",
+  });
+  const transport = connection.transport({ chain: connection.chain });
+  assert.equal(
+    transport.value?.url,
+    "https://rpc.rabdi.db-chain.testnet.arkiv.network/test%2Fkey",
+  );
+  assert.equal(transport.config.timeout, 6000);
+  assert.equal(transport.config.retryCount, 0);
+  const embedded = arkivConnection({
+    rpcUrl: "https://rpc.rabdi.db-chain.testnet.arkiv.network/existing-key",
+  });
+  assert.equal(
+    embedded.transport({ chain: embedded.chain }).value?.url,
+    "https://rpc.rabdi.db-chain.testnet.arkiv.network/existing-key",
+  );
+  const custom = arkivConnection({
+    rpcUrl: "https://custom-rpc.example/rpc",
+    accessKey: "test-key",
+  });
+  assert.equal(
+    custom.transport({ chain: custom.chain }).value?.url,
+    "https://custom-rpc.example/rpc",
+  );
+});
 test("Arkiv profile encryption hides identity data and rejects tampering, wrong wallets and keys", () => {
   const key = randomBytes(32).toString("hex"),
     crypto = profileCrypto(key, "atlas-test");

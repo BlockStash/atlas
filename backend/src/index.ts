@@ -10,6 +10,7 @@ if (process.env.PROFILE_STORE === "arkiv") {
   try {
     store = new ArkivProfileStore({
       rpcUrl: process.env.ARKIV_RPC_URL || "",
+      accessKey: process.env.ARKIV_ACCESS_KEY,
       chainId: Number(process.env.ARKIV_CHAIN_ID),
       privateKey: process.env.ARKIV_PRIVATE_KEY || "",
       signerAddress: process.env.ARKIV_SIGNER_ADDRESS,

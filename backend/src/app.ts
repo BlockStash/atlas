@@ -9,7 +9,12 @@ import { z } from "zod";
 import { ProfileStore } from "./store.js";
 import type { ProfileRepository } from "./profile-repository.js";
 import { createEnsResolver, normalizedEnsName } from "./ens.js";
-import { markets, portfolio } from "./data.js";
+import { markets } from "./data.js";
+import {
+  createPortfolioReader,
+  PortfolioReadError,
+  type PortfolioSnapshot,
+} from "./protocol/portfolio.js";
 import {
   verifyWorldId,
   VerificationError,
@@ -44,6 +49,7 @@ export interface AppOptions {
   store?: ProfileRepository;
   ensResolve?: (name: string) => Promise<string | null>;
   passkeyRpId?: string;
+  portfolioRead?: (address: string) => Promise<PortfolioSnapshot>;
 }
 const addressSchema = z
   .string()
@@ -74,6 +80,7 @@ export function createApp(options: AppOptions) {
   const app = express(),
     store = options.store ?? new ProfileStore(options.dataFile),
     now = options.now ?? Date.now;
+  const readPortfolio = options.portfolioRead ?? createPortfolioReader();
   const resolveEns =
     options.ensResolve ??
     createEnsResolver(
@@ -556,9 +563,19 @@ export function createApp(options: AppOptions) {
     res.json({ demo: true, ...result });
   });
   app.get("/api/markets", (_req, res) => res.json({ demo: true, markets }));
-  app.get("/api/portfolio", authenticated, (_req, res) => {
+  app.get("/api/portfolio", authenticated, async (_req, res) => {
     res.set("Cache-Control", "no-store");
-    res.json(portfolio);
+    try {
+      res.json(
+        await readPortfolio((res.locals.wallet as WalletSession).address),
+      );
+    } catch (error) {
+      if (error instanceof PortfolioReadError) {
+        fail(res, 503, error.code, error.message);
+        return;
+      }
+      throw error;
+    }
   });
   app.use("/api/protocol", protocolRouter());
   app.use((_req, res) =>

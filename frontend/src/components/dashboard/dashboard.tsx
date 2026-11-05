@@ -8,16 +8,19 @@ import {
   ArrowRight,
   ArrowUpRight,
   Check,
-  ChevronDown,
   Coins,
   Compass,
   Globe2,
-  Info,
-  Layers3,
   ShieldCheck,
   X,
 } from "lucide-react";
+import { OnchainPortfolio } from "@/components/protocol/portfolio";
 import { ProtocolSummary } from "@/components/protocol/summary";
+import { MarketStocks } from "@/components/protocol/market-stocks";
+import {
+  useStockSessions,
+  regionMarketState,
+} from "@/lib/protocol/stock-sessions";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
 import { DashboardShell } from "./shell";
@@ -27,81 +30,6 @@ import { useAtlas } from "@/components/atlas/provider";
 import { MarketCard, Ticker } from "@/components/atlas/ui";
 import { markets } from "@/lib/data";
 import { api } from "@/lib/api";
-type Portfolio = {
-  totalValue: number;
-  todayChange: number;
-  todayChangePercent: number;
-  balances: {
-    symbol: string;
-    name: string;
-    balance: number;
-    price: number;
-    value: number;
-  }[];
-  positions: {
-    symbol: string;
-    name: string;
-    market: string;
-    shares: number;
-    value: number;
-    change: number;
-  }[];
-  history: number[];
-};
-const usd = (v: number) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-    v,
-  );
-function PortfolioChart({ period }: { period: string }) {
-  const paths: Record<string, string> = {
-    "1D": "M0 120 20 118 30 125 43 110 55 115 63 103 75 106 85 90 95 97 110 83 125 90 136 72 146 85 160 62 175 66 185 53 200 58 215 42 225 50 240 27 250 34 265 20 278 27 290 11 310 15 320 5",
-    "1W": "M0 125 25 100 40 109 60 102 85 118 110 74 130 80 150 55 170 65 195 33 220 48 245 24 270 29 295 9 320 5",
-    "1M": "M0 130 24 121 38 125 56 100 75 105 95 80 113 100 135 74 156 65 173 76 190 52 215 61 235 28 255 34 280 20 300 24 320 5",
-    "1Y": "M0 140 24 130 45 138 65 115 90 124 115 90 140 99 165 70 190 82 215 49 240 60 270 27 290 35 320 5",
-    ALL: "M0 145 25 135 48 138 77 119 100 125 127 94 150 104 180 75 205 89 240 52 265 61 290 22 320 5",
-  };
-  return (
-    <svg
-      className="portfolio-chart"
-      viewBox="0 0 320 170"
-      preserveAspectRatio="none"
-      aria-label={`Illustrative portfolio performance over ${period}`}
-      role="img"
-    >
-      <defs>
-        <linearGradient id="chart-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor="#6b95ed" stopOpacity=".21" />
-          <stop offset="1" stopColor="#6b95ed" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {[30, 75, 120, 165].map((y) => (
-        <line
-          key={y}
-          x1="0"
-          x2="320"
-          y1={y}
-          y2={y}
-          stroke="#9baec3"
-          strokeOpacity=".07"
-          strokeDasharray="3 4"
-        />
-      ))}
-      <path d={`${paths[period]} L320 170 L0 170Z`} fill="url(#chart-fill)" />
-      <motion.path
-        key={period}
-        initial={{ pathLength: 0 }}
-        animate={{ pathLength: 1 }}
-        transition={{ duration: 0.7 }}
-        d={paths[period]}
-        stroke="#7ea6ff"
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-        fill="none"
-      />
-      <circle cx="320" cy="5" r="3" fill="#a3c0ff" />
-    </svg>
-  );
-}
 function WelcomeTour() {
   const { state, update } = useAtlas();
   const [started, setStarted] = useState(false),
@@ -114,12 +42,12 @@ function WelcomeTour() {
     },
     {
       title: "A pulse on every market.",
-      copy: "The market clock shows local times. Open and closed indicators are illustrative in this investor preview.",
+      copy: "The market clock shows local exchange times and the latest reported open or closed status.",
       target: "tour-clock",
     },
     {
       title: "Your crypto, connected.",
-      copy: "Your USDT and ATLAS balances live here. All balances in this preview are simulated.",
+      copy: "Your wallet USDT, vault shares and Sepolia ETH balances appear here directly from the blockchain.",
       target: "tour-balances",
     },
     {
@@ -202,10 +130,9 @@ export function Dashboard({
   view?: "dashboard" | "markets" | "portfolio" | "wallet";
 }) {
   const { wallet, state, toast, ready } = useAtlas();
+  const sessions = useStockSessions();
   const [marketData, setMarketData] = useState<MarketPreference[]>(markets);
-  const [portfolio, setPortfolio] = useState<Portfolio | null>(null),
-    [error, setError] = useState(""),
-    [period, setPeriod] = useState("1M"),
+  const [error, setError] = useState(""),
     [query, setQuery] = useState(""),
     [activeMarket, setActiveMarket] = useState<string | null>(null),
     [marketTab, setMarketTab] = useState<"global" | "crypto">("global"),
@@ -232,13 +159,9 @@ export function Dashboard({
   useEffect(() => {
     if (!ready || !wallet) return;
     let alive = true;
-    Promise.all([
-      api<Portfolio>("/portfolio"),
-      api<{ markets: (MarketPreference & { timezone: string })[] }>("/markets"),
-    ])
-      .then(([p, m]) => {
+    api<{ markets: (MarketPreference & { timezone: string })[] }>("/markets")
+      .then((m) => {
         if (alive) {
-          setPortfolio(p);
           setMarketData(
             m.markets.map((item) => ({ ...item, zone: item.timezone })),
           );
@@ -303,10 +226,15 @@ export function Dashboard({
           </div>
           <span className="verified-label">
             <ShieldCheck size={15} />
-            World ID verified{state.worldIdVerifiedDemo && <small>DEMO</small>}
+            {state.worldIdVerified
+              ? "World ID verified"
+              : state.passkeyVerified
+                ? "Passkey verified"
+                : "Wallet connected"}
+            {state.worldIdVerifiedDemo && <small>DEMO</small>}
           </span>
         </div>
-        <ProtocolSummary />
+        {view === "markets" && <ProtocolSummary />}
         {error && (
           <div className="error-box dashboard-error" role="alert">
             {error}
@@ -319,127 +247,7 @@ export function Dashboard({
             </button>
           </div>
         )}
-        {(view === "dashboard" || view === "portfolio") && (
-          <div className="summary-grid">
-            <section className="portfolio-panel panel" id="tour-portfolio">
-              <div className="panel-header">
-                <span>
-                  <span className="tiny-icon">
-                    <Layers3 size={14} />
-                  </span>
-                  GLOBAL PORTFOLIO
-                </span>
-                <span className="demo-badge">DEMO PORTFOLIO</span>
-              </div>
-              <div className="portfolio-main">
-                <div className="portfolio-amount">
-                  {portfolio ? (
-                    usd(portfolio.totalValue)
-                  ) : (
-                    <span className="skeleton amount-skeleton" />
-                  )}
-                  <span>
-                    USD
-                    <ChevronDown size={12} />
-                  </span>
-                </div>
-                <div className="portfolio-movement">
-                  <span>
-                    <ArrowUpRight size={14} />
-                    {portfolio
-                      ? `+${usd(portfolio.todayChange)} (+${portfolio.todayChangePercent}%)`
-                      : "Loading…"}
-                  </span>
-                  <small>today</small>
-                </div>
-              </div>
-              <div className="chart-area">
-                <PortfolioChart period={period} />
-                <div className="chart-labels">
-                  <span>{period === "1D" ? "09:00" : "Oct 06"}</span>
-                  <span>{period === "1D" ? "12:00" : "Oct 13"}</span>
-                  <span>{period === "1D" ? "15:00" : "Oct 20"}</span>
-                  <span>{period === "1D" ? "18:00" : "Oct 27"}</span>
-                  <span>{period === "1D" ? "Now" : "Nov 05"}</span>
-                </div>
-              </div>
-              <div className="portfolio-panel-footer">
-                <div className="period-selector">
-                  {["1D", "1W", "1M", "1Y", "ALL"].map((p) => (
-                    <button
-                      key={p}
-                      className={p === period ? "active" : ""}
-                      onClick={() => setPeriod(p)}
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <Link href="/portfolio">
-                  View portfolio
-                  <ArrowUpRight size={13} />
-                </Link>
-              </div>
-            </section>
-            <div className="balances-column" id="tour-balances">
-              <div className="balance-column-title">
-                <span>YOUR CRYPTO BALANCES</span>
-                <Info size={13} />
-              </div>
-              {(
-                portfolio?.balances || [
-                  {
-                    symbol: "USDT",
-                    name: "Tether USD",
-                    balance: 0,
-                    price: 1,
-                    value: 0,
-                  },
-                  {
-                    symbol: "ATLAS",
-                    name: "Atlas Coin",
-                    balance: 0,
-                    price: 2,
-                    value: 0,
-                  },
-                ]
-              ).map((balance) => (
-                <section key={balance.symbol} className="balance-card panel">
-                  <div className="balance-card-heading">
-                    <span
-                      className={`token-icon ${balance.symbol.toLowerCase()}`}
-                    >
-                      {balance.symbol === "USDT" ? "₮" : "A"}
-                    </span>
-                    <div>
-                      <strong>{balance.symbol}</strong>
-                      <span>{balance.name}</span>
-                    </div>
-                    <span className="balance-demo">DEMO</span>
-                  </div>
-                  <div className="balance-value">
-                    {portfolio ? (
-                      balance.balance.toLocaleString("en-US", {
-                        maximumFractionDigits: 2,
-                      })
-                    ) : (
-                      <span className="skeleton" />
-                    )}
-                    <span>{balance.symbol}</span>
-                  </div>
-                  <footer>
-                    <span>≈ {portfolio ? usd(balance.value) : "—"}</span>
-                    <span>
-                      {balance.symbol === "ATLAS"
-                        ? "$2.00 demo price"
-                        : "Dollar-pegged"}
-                    </span>
-                  </footer>
-                </section>
-              ))}
-            </div>
-          </div>
-        )}
+        {(view === "dashboard" || view === "portfolio") && <OnchainPortfolio />}
         {view === "markets" && (
           <div className="ens-tabs market-tabs" role="tablist">
             {(
@@ -485,7 +293,9 @@ export function Dashboard({
                   <ArrowRight size={14} />
                 </Link>
               ) : (
-                <span className="demo-badge">DEMO MARKET STATUS</span>
+                <span className="demo-badge">
+                  EXCHANGE STATUS · TWELVE DATA
+                </span>
               )}
             </div>
             <div className="market-card-grid">
@@ -493,6 +303,7 @@ export function Dashboard({
                 <MarketCard
                   key={m.id}
                   market={m}
+                  marketState={regionMarketState(sessions.stocks, m.id)}
                   selected={state.selectedMarkets.includes(m.id)}
                   onClick={() => openMarket(m.id)}
                 />
@@ -508,66 +319,6 @@ export function Dashboard({
                 </button>
               </div>
             )}
-          </section>
-        )}
-        {(view === "portfolio" || view === "dashboard") && (
-          <section className="holdings-panel panel">
-            <div className="section-heading">
-              <div>
-                <h2>Across your portfolio</h2>
-                <p>A snapshot of your global positions.</p>
-              </div>
-              <span className="demo-badge">ILLUSTRATIVE HOLDINGS</span>
-            </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Asset</th>
-                    <th>Market</th>
-                    <th>Shares</th>
-                    <th>Position value</th>
-                    <th>Today</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {portfolio?.positions.map((h, i) => (
-                    <tr key={h.symbol}>
-                      <td>
-                        <span className={`stock-avatar stock-${i}`}>
-                          {h.symbol.slice(0, 1)}
-                        </span>
-                        <span>
-                          <strong>{h.symbol}</strong>
-                          <small>{h.name}</small>
-                        </span>
-                      </td>
-                      <td>
-                        {markets.find((m) => m.id === h.market)?.flag}{" "}
-                        {markets.find((m) => m.id === h.market)?.name}
-                      </td>
-                      <td className="mono">{h.shares.toFixed(2)}</td>
-                      <td className="mono">{usd(h.value)}</td>
-                      <td className={h.change >= 0 ? "positive" : "negative"}>
-                        {h.change >= 0 ? "+" : ""}
-                        {h.change.toFixed(2)}%
-                      </td>
-                    </tr>
-                  )) ||
-                    [0, 1, 2].map((i) => (
-                      <tr key={i}>
-                        <td colSpan={5}>
-                          <span className="skeleton row-skeleton" />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="holdings-footnote">
-              <Info size={13} />
-              Sample positions are a subset of the illustrative portfolio.
-            </div>
           </section>
         )}
         {view === "wallet" && (
@@ -610,34 +361,15 @@ export function Dashboard({
               <ENSIdentity />
             </div>
             <SepoliaWallet />
-            <div className="wallet-balance-grid">
-              {portfolio?.balances.map((b) => (
-                <div className="balance-card panel" key={b.symbol}>
-                  <div className="balance-card-heading">
-                    <span className={`token-icon ${b.symbol.toLowerCase()}`}>
-                      {b.symbol === "USDT" ? "₮" : "A"}
-                    </span>
-                    <strong>{b.symbol}</strong>
-                    <span className="demo-badge">DEMO</span>
-                  </div>
-                  <div className="balance-value">
-                    {b.balance.toLocaleString()}
-                    <span>{b.symbol}</span>
-                  </div>
-                  <footer>
-                    ≈ {usd(b.value)}
-                    <span>{usd(b.price)} demo price</span>
-                  </footer>
-                </div>
-              )) || <div className="skeleton wallet-skeleton" />}
-            </div>
+            <OnchainPortfolio view="wallet" />
             <div className="wallet-explanation panel">
               <ShieldCheck size={27} />
               <div>
                 <h3>Your wallet. Your control.</h3>
                 <p>
-                  USDT and ATLAS balances are simulated. Use the Sepolia test
-                  wallet above for real test ETH transfers.
+                  Token balances and stock positions are read from your
+                  connected Sepolia wallet. The transfer panel above sends
+                  Sepolia test ETH.
                 </p>
               </div>
             </div>
@@ -689,36 +421,11 @@ export function Dashboard({
               </span>
               <Dialog.Title>{current.name}</Dialog.Title>
               <Dialog.Description>{current.exchange}</Dialog.Description>
-              <span className={`market-status ${current.open ? "" : "closed"}`}>
-                {current.open ? "● OPEN" : "○ CLOSED"} · DEMO STATUS
-              </span>
-              <div className="market-index">
-                <span>{current.index}</span>
-                <strong>{current.value}</strong>
-                <span
-                  className={
-                    current.change.startsWith("−") ? "negative" : "positive"
-                  }
-                >
-                  {current.change} today
-                </span>
-              </div>
-              <PortfolioChart period="1M" />
-              <p className="market-detail-note">
-                Market prices and charts are illustrative. Stock discovery and
-                crypto-powered investment are the next stage of Atlas.
-              </p>
-              <button
-                className="btn secondary full"
-                onClick={() =>
-                  toast(
-                    `${current.name} is ${state.selectedMarkets.includes(current.id) ? "already in your markets" : "available in your onboarding preferences"}.`,
-                  )
-                }
-              >
-                Explore your global perspective
-                <ArrowUpRight size={16} />
-              </button>
+              <MarketStocks
+                key={current.id}
+                region={current.id}
+                name={current.name}
+              />
             </Dialog.Content>
           )}
         </Dialog.Portal>
