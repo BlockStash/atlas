@@ -13,7 +13,7 @@ import {
   ZeroAddress,
 } from "ethers";
 import {
-  estimateDeployment,
+  deploymentGasLimit,
   sendSetupTransaction,
   marketExpiry,
   deploymentError,
@@ -112,12 +112,28 @@ async function main() {
       await readFile(new URL(`out/${name}.sol/${name}.json`, root), "utf8"),
     );
   const options = {
+    onGasIncrease: (gas) =>
+      console.log(`Increasing verified gas budget to ${gas}.`),
     onRetry: (n) => console.log(`RPC estimate retry ${n}/3`),
     onSubmitted: (hash) => console.log(`Submitted ${hash}`),
     onConfirmed: (r) => console.log(`Confirmed block ${r.blockNumber}`),
   };
-  const tx = (c, method, args = []) =>
-    sendSetupTransaction(provider, c, deployer, method, args, options);
+  const tx = async (c, method, args = []) => {
+    const address = await c.getAddress();
+    console.log(`Preparing ${method} at ${address}…`);
+    try {
+      return await sendSetupTransaction(
+        provider,
+        c,
+        deployer,
+        method,
+        args,
+        options,
+      );
+    } catch (error) {
+      throw Error(`${method} at ${address}: ${deploymentError(error)}`);
+    }
+  };
   async function deploy(key, name, args) {
     const a = await artifact(name);
     let saved = state.deployments[key];
@@ -132,11 +148,17 @@ async function main() {
     }
     const f = new ContractFactory(a.abi, a.bytecode.object, signer),
       request = await f.getDeployTransaction(...args);
-    const gasLimit = await estimateDeployment(
-      provider,
-      { ...request, from: deployer },
-      options,
-    );
+    console.log(`Preparing deployment: ${key} (${name})…`);
+    let gasLimit;
+    try {
+      gasLimit = await deploymentGasLimit(
+        provider,
+        { ...request, from: deployer },
+        options,
+      );
+    } catch (error) {
+      throw Error(`${key} (${name}): ${deploymentError(error)}`);
+    }
     const c = await f.deploy(...args, { gasLimit });
     saved = {
       address: await c.getAddress(),

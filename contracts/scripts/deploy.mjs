@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { readFile, writeFile, mkdir, access, unlink } from "node:fs/promises";
 import {
-  estimateDeployment,
+  deploymentGasLimit,
   deploymentError,
   sendSetupTransaction,
   marketExpiry,
@@ -118,7 +118,7 @@ async function main() {
     const request = await factory.getDeployTransaction(...args);
     // Estimate before NonceManager reserves a nonce. RPC lag can temporarily make
     // a freshly mined dependency invisible to the estimation backend.
-    const gasLimit = await estimateDeployment(
+    const gasLimit = await deploymentGasLimit(
       provider,
       { ...request, from: deployer },
       {

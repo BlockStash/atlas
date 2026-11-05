@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { ContractFactory, JsonRpcProvider, Wallet } from "ethers";
-import { estimateDeployment, deploymentError } from "./deployment-utils.mjs";
+import { deploymentGasLimit, deploymentError } from "./deployment-utils.mjs";
 async function main() {
   const [fqn, reference, referenceDir] = process.argv.slice(2);
   if (!fqn || !reference || !referenceDir || !fqn.includes(":"))
@@ -53,7 +53,7 @@ async function main() {
       signer,
     );
   const request = await factory.getDeployTransaction();
-  const gasLimit = await estimateDeployment(provider, {
+  const gasLimit = await deploymentGasLimit(provider, {
     ...request,
     from: signer.address,
   });

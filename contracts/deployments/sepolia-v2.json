@@ -1,0 +1,91 @@
+{
+  "version": 2,
+  "chainId": 11155111,
+  "demo": true,
+  "settings": {
+    "deployer": "0xB9B85F4b79671A95365CF60F1767F63D4B8F1040",
+    "owner": "0xB9B85F4b79671A95365CF60F1767F63D4B8F1040",
+    "treasury": "0xB9B85F4b79671A95365CF60F1767F63D4B8F1040",
+    "updater": "0xB9B85F4b79671A95365CF60F1767F63D4B8F1040",
+    "admin": null,
+    "asset": null,
+    "vault": null
+  },
+  "deploymentBlock": 12071511,
+  "deployments": {
+    "usdt": {
+      "address": "0x6a811b8E103490E0080a8Dd38a8A22AA881Bd111",
+      "hash": "0x5d716427323f4ad61e067075a4667d0b68f72e8aa657129ff63a926c82d513ba"
+    },
+    "vault": {
+      "address": "0x1FCA52811785e5c52a651C3b2d9C14E28a494a79",
+      "hash": "0x5bac45d2b30ed67c2911f66690d223b17703336aaed5860898865a22a4ed13a8"
+    },
+    "implementation": {
+      "address": "0xD98c694b516CaC6CBd6bC06930a91308970d098d",
+      "hash": "0x518df6ae3c25e22076eb6b7b963df4ea5419132b459ca9231b42648a13ab5a81"
+    },
+    "india": {
+      "address": "0x55dc5b3707BD5964616ee0416995f9f0ED6Ce1bD",
+      "hash": "0x12fa88290fef3e8e0a8e782aa587253f3ed667ec7d3520924929c7a3bb4f53ea"
+    },
+    "usa": {
+      "address": "0x1c34E96d2851f273f999B52681A88b04243a8a2A",
+      "hash": "0x908bb04f8171fb9add8db9db3778f955579fcab67af9552f8aae1522d37955d5"
+    },
+    "uk": {
+      "address": "0xD90543B45ddc97d8c659B8b9225f20359e466A9B",
+      "hash": "0x18aaef888af3d512b82994ea231b664d6485c6ab9f264ba701e9ce7eccb1f12c"
+    },
+    "singapore": {
+      "address": "0xfd025d8f46626EC6c1983F59181A22171699fAE8",
+      "hash": "0xc12d99710ffb5a452b107ef48d2bbbdd96814c32743a38c844030c0c11893dec"
+    },
+    "europe": {
+      "address": "0x9961E6a390281873a9EB7a8b601d467792B1562d",
+      "hash": "0x513ad9daf011cab72773c9147e0a15c4fe7cd10f3595f2e6a5c7ed127bfd775c"
+    },
+    "engine": {
+      "address": "0xC4F763e0E919f8FC234546B7Fd7F6BEeED35cc4a",
+      "hash": "0xee85d1f6673f6a7b663bd796fa47c8273a8d666d19462d2fa6d4c572f635b2b5"
+    }
+  },
+  "countries": [
+    {
+      "region": "india",
+      "label": "India",
+      "currency": "INR",
+      "address": "0x55dc5b3707BD5964616ee0416995f9f0ED6Ce1bD"
+    },
+    {
+      "region": "usa",
+      "label": "United States",
+      "currency": "USD",
+      "address": "0x1c34E96d2851f273f999B52681A88b04243a8a2A"
+    },
+    {
+      "region": "uk",
+      "label": "United Kingdom",
+      "currency": "GBP",
+      "address": "0xD90543B45ddc97d8c659B8b9225f20359e466A9B"
+    },
+    {
+      "region": "singapore",
+      "label": "Singapore",
+      "currency": "SGD",
+      "address": "0xfd025d8f46626EC6c1983F59181A22171699fAE8"
+    },
+    {
+      "region": "europe",
+      "label": "Europe",
+      "currency": "EUR",
+      "address": "0x9961E6a390281873a9EB7a8b601d467792B1562d"
+    }
+  ],
+  "settlementTokenIsDemo": true,
+  "atlasUSDT": "0x6a811b8E103490E0080a8Dd38a8A22AA881Bd111",
+  "atlasVault": "0x1FCA52811785e5c52a651C3b2d9C14E28a494a79",
+  "implementation": "0xD98c694b516CaC6CBd6bC06930a91308970d098d",
+  "tradingEngine": "0xC4F763e0E919f8FC234546B7Fd7F6BEeED35cc4a",
+  "completedAt": "2026-11-05T19:39:52.463Z"
+}
