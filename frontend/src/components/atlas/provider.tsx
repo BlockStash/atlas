@@ -96,7 +96,7 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
       .finally(() => setReady(true));
   }, [acceptSession]);
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || path.startsWith("/admin")) return;
     if (path !== "/" && !wallet) router.replace("/");
     if (path === "/" && wallet)
       router.replace(state.onboardingComplete ? "/dashboard" : "/onboarding");

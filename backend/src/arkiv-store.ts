@@ -8,6 +8,7 @@ import { and, eq } from "@arkiv-network/sdk/query";
 import { rabdi } from "@arkiv-network/sdk/chains";
 import { http, hexToBytes, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { normalizeProfile } from "./profile-migrations.js";
 import { readFile } from "node:fs/promises";
 import type { ProfileRepository } from "./profile-repository.js";
 import { defaultProfile, type Profile } from "./types.js";
@@ -115,7 +116,7 @@ export class ArkivProfileStore implements ProfileRepository {
     const profile = this.crypto.decrypt<Profile>(address, hexToBytes(payload));
     if (profile.walletAddress.toLowerCase() !== address.toLowerCase())
       throw new Error("Profile wallet mismatch");
-    return { ...defaultProfile(address), ...profile };
+    return normalizeProfile(address, profile);
   }
   private async legacy(address: string) {
     if (!this.options.legacyFile) return defaultProfile(address);
@@ -127,7 +128,7 @@ export class ArkivProfileStore implements ProfileRepository {
       for (const profile of Object.values(profiles))
         if (profile.worldIdNullifier)
           this.claims.claim(profile.worldIdNullifier, profile.walletAddress);
-      return { ...defaultProfile(address), ...profiles[address.toLowerCase()] };
+      return normalizeProfile(address, profiles[address.toLowerCase()]);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
         return defaultProfile(address);

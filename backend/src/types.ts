@@ -1,4 +1,4 @@
-export type MarketId = "india" | "usa" | "uk" | "china" | "europe";
+export type MarketId = "india" | "usa" | "uk" | "singapore" | "europe";
 export interface Profile {
   walletAddress: string;
   ensName: string | null;

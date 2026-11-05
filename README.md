@@ -2,11 +2,13 @@
 
 **Global Markets. One Wallet.**
 
-Atlas combines a global market demo with real MetaMask authentication on **Sepolia**, **World ID 4.x IDKit** verification, **ENSjs** identity, and encrypted profile storage on **Arkiv Rabdi**. The wallet page can send real **Sepolia test ETH**. Stock positions and USDT/ATLAS balances remain illustrative; no securities trades or token contracts are implemented.
+Atlas combines MetaMask authentication on **Sepolia**, **World ID 4.x IDKit** QR verification, **ENSjs** identity, and encrypted profile storage on **Arkiv Rabdi**. The current v2 protocol adds six-decimal demo USDT, an ERC-4626 vault and five upgradeable ERC-1155 market contracts holding 50 initial stock IDs. It supports new-stock onboarding, native/FX/USD-USDT pricing and reserve-funded trades. These are demo synthetic assets with no legal equity ownership. Existing illustrative dashboard cards are separate from the onchain Vault and Synthetic stocks pages.
+
+The v2 country architecture needs a new Sepolia deployment; existing per-stock ERC-20 contracts cannot be converted in place. Follow [the protocol guide](contracts/README.md). Existing deployments and holdings are preserved. Until a v2 manifest is configured, protocol pages display a setup message.
 
 ## Run locally
 
-Requires Node.js 22.13+ and npm.
+Requires Node.js 22.13+, npm, and [Foundry](https://getfoundry.sh/) for contract compilation and testing. Solidity is pinned to 0.8.33; the wrapper also supports a locally installed matching `solc`.
 
 ```sh
 npm run setup
@@ -15,6 +17,8 @@ npm run dev
 ```
 
 Open **http://127.0.0.1:3000**. The frontend proxies `/api/*` to port 4000. Use the 127.0.0.1 address consistently with `FRONTEND_ORIGIN`. Stop both servers with Ctrl+C.
+
+To run separately, use `npm run dev --prefix backend` and `npm run dev --prefix frontend` in two terminals. For protocol setup, deployment, role configuration, test-token distribution and price refreshes, see [contracts/README.md](contracts/README.md). The user routes are `/vault` and `/trade`; the separate `admin/` application runs at **http://127.0.0.1:3001** using `npm run dev:admin`. The old `/admin` bookmark redirects there. World ID and ENS keep their existing login flow.
 
 ## Configure real World App verification
 
@@ -113,12 +117,14 @@ npm run build
 npm run test:smoke
 ```
 
-Automated tests cover wallet authentication, profiles, proof binding/replay/expiry, upstream failures, unique identity claims, network/account restrictions and ETH precision. Live World App verification and MetaMask signing require your configuration and interactive testing; automated tests use mocked World responses and never broadcast transactions.
+Automated tests cover authentication, World ID, ENS, encrypted profiles, exact price normalization/history, vault accounting, access control, trading, stale feeds, liquidity limits and adversarial token behavior. Foundry includes fuzz and stateful invariant tests. Live World App verification and MetaMask signing require interactive testing. The explicit local protocol smoke command in the protocol guide broadcasts only to Anvil.
 
 ## Project structure and persistence
 
 - `frontend/`: Next.js, React, TypeScript, Tailwind, Framer Motion, MetaMask Connect EVM, World ID IDKit, ENSjs and viem.
-- `backend/`: Express, signed wallet sessions, server-only World ID request signing and verification, atomic JSON profiles.
+- `backend/`: Express, signed wallet sessions, World ID verification, Arkiv profiles, price ingestion and SQLite price history.
+- `contracts/`: country UUPS proxies/implementation, shared vault/token/trading engine, legacy contracts, Foundry tests, deployment scripts and ABIs.
+- `admin/`: independent React/Vite country-management dashboard; owner permissions, stocks, price feeds, treasury and upgrades.
 - `scripts/`: setup, combined dev launcher and HTTP smoke checks.
 
 Profiles are stored encrypted in Arkiv when `PROFILE_STORE=arkiv`; `backend/data/profiles.json` remains the explicit local-development adapter and migration source. Identity replay claims use the durable SQLite ledger. Preferences are also mirrored to localStorage. Sessions and pending challenges are memory-resident and expire after 24 hours / five minutes respectively. Restarting the backend requires wallet sign-in again. Use a transactional database and shared sessions before running multiple backend instances.

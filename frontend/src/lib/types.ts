@@ -1,4 +1,4 @@
-export type MarketId = "india" | "usa" | "uk" | "china" | "europe";
+export type MarketId = "india" | "usa" | "uk" | "singapore" | "europe";
 export type PaymentAssetPreference = "USDT" | "ATLAS";
 export type InvestorExperience = "beginner" | "intermediate" | "advanced";
 export type MarketPreference = {

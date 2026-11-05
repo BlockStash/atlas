@@ -1,4 +1,5 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { normalizeProfile } from "./profile-migrations.js";
 import { IdentityClaims } from "./identity-claims.js";
 import { VerificationError } from "./world-id.js";
 import { dirname } from "node:path";
@@ -32,10 +33,9 @@ export class ProfileStore {
   }
   async get(address: string): Promise<Profile> {
     await this.ready;
-    return structuredClone({
-      ...defaultProfile(address),
-      ...this.profiles[address.toLowerCase()],
-    });
+    return structuredClone(
+      normalizeProfile(address, this.profiles[address.toLowerCase()]),
+    );
   }
   async update(address: string, patch: Partial<Profile>): Promise<Profile> {
     let result: Profile | undefined;

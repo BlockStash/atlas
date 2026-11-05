@@ -114,12 +114,12 @@ export function Ticker() {
           <svg width="55" height="20" viewBox="0 0 55 20">
             <path
               d={
-                m.id === "china"
+                m.id === "singapore"
                   ? "M0 4 8 9 14 6 21 12 29 8 38 14 47 12 55 18"
                   : "M0 18 8 11 14 14 21 6 29 10 38 3 47 6 55 1"
               }
               fill="none"
-              stroke={m.id === "china" ? "#d57d82" : "#58c7a5"}
+              stroke={m.id === "singapore" ? "#d57d82" : "#58c7a5"}
               strokeWidth="1.5"
             />
           </svg>

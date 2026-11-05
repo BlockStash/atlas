@@ -1,0 +1,30 @@
+{
+  "name": "atlas-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node scripts/forge.mjs build && node scripts/export-abis.mjs",
+    "test": "node --test test/*.test.mjs && node scripts/forge.mjs test --force",
+    "format": "forge fmt",
+    "format:check": "forge fmt --check",
+    "analyze": "node scripts/forge.mjs lint --severity high med --deny warnings",
+    "abi": "node scripts/export-abis.mjs",
+    "deploy:sepolia": "node scripts/deploy-countries.mjs sepolia",
+    "deploy:local": "node scripts/deploy-countries.mjs local",
+    "test:smoke": "node scripts/smoke-countries.mjs",
+    "deploy:legacy:sepolia": "node scripts/deploy.mjs sepolia",
+    "deploy:legacy:local": "node scripts/deploy.mjs local",
+    "upgrade:validate": "node node_modules/@openzeppelin/upgrades-core/dist/cli/cli.js validate out/build-info --contract src/AtlasCountryMarket.sol:AtlasCountryMarket",
+    "test:smoke:legacy": "node scripts/smoke.mjs",
+    "upgrade:prepare": "node scripts/prepare-upgrade.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.4.0",
+    "@openzeppelin/contracts-upgradeable": "5.4.0",
+    "dotenv": "^16.6.1",
+    "ethers": "^6.15.0"
+  },
+  "devDependencies": {
+    "@openzeppelin/upgrades-core": "^1.48.0"
+  }
+}
