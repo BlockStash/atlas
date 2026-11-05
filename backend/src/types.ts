@@ -1,4 +1,6 @@
-export type MarketId = "india" | "usa" | "uk" | "singapore" | "europe";
+import type { CryptoAccount } from "./crypto.js";
+export type MarketId =
+  "india" | "usa" | "uk" | "singapore" | "europe" | "crypto";
 export interface Profile {
   walletAddress: string;
   ensName: string | null;
@@ -12,6 +14,14 @@ export interface Profile {
   worldIdVerifiedDemo: boolean;
   worldIdEnvironment?: "production" | "staging" | null;
   worldIdNullifier?: string;
+  passkeyVerified: boolean;
+  passkeyCredentialId?: string | null;
+  passkeyPublicKey?: string | null;
+  passkeyCounter?: number;
+  passkeyDeviceType?: string;
+  passkeyBackedUp?: boolean;
+  passkeyVerifiedAt?: string | null;
+  cryptoAccount?: CryptoAccount;
   onboardingComplete: boolean;
   productTourComplete: boolean;
   updatedAt: string;
@@ -33,6 +43,7 @@ export const defaultProfile = (address: string): Profile => ({
   worldIdVerified: false,
   worldIdVerifiedDemo: false,
   worldIdEnvironment: null,
+  passkeyVerified: false,
   onboardingComplete: false,
   productTourComplete: false,
   updatedAt: new Date().toISOString(),

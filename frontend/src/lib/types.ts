@@ -1,4 +1,5 @@
-export type MarketId = "india" | "usa" | "uk" | "singapore" | "europe";
+export type MarketId =
+  "india" | "usa" | "uk" | "singapore" | "europe" | "crypto";
 export type PaymentAssetPreference = "USDT" | "ATLAS";
 export type InvestorExperience = "beginner" | "intermediate" | "advanced";
 export type MarketPreference = {
@@ -29,6 +30,7 @@ export type UserOnboardingState = {
   worldIdVerified: boolean;
   worldIdVerifiedDemo: boolean;
   worldIdEnvironment: "production" | "staging" | null;
+  passkeyVerified: boolean;
   selectedMarkets: MarketId[];
   preferredAsset: PaymentAssetPreference;
   experienceLevel: InvestorExperience;

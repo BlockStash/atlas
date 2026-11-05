@@ -10,6 +10,7 @@ import {
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { MotionConfig } from "framer-motion";
+import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
 import { api } from "@/lib/api";
 import type { UserOnboardingState, WalletState } from "@/lib/types";
 const defaults: UserOnboardingState = {
@@ -19,6 +20,7 @@ const defaults: UserOnboardingState = {
   worldIdVerified: false,
   worldIdVerifiedDemo: false,
   worldIdEnvironment: null,
+  passkeyVerified: false,
   selectedMarkets: ["india"],
   preferredAsset: "USDT",
   experienceLevel: "intermediate",
@@ -39,6 +41,7 @@ type Context = {
   logout: () => Promise<void>;
   toast: (m: string) => void;
   verifyHuman: (proof?: unknown) => Promise<void>;
+  registerPasskey: () => Promise<void>;
   sync: () => Promise<void>;
 };
 function preferences(s: UserOnboardingState) {
@@ -202,6 +205,21 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     },
     [update],
   );
+  const registerPasskey = useCallback(async () => {
+    const [{ startRegistration }, optionsJSON] = await Promise.all([
+      import("@simplewebauthn/browser"),
+      api<PublicKeyCredentialCreationOptionsJSON>(
+        "/passkey/register/options",
+        {},
+      ),
+    ]);
+    const response = await startRegistration({ optionsJSON });
+    const result = await api<{ profile: UserOnboardingState }>(
+      "/passkey/register/verify",
+      { response },
+    );
+    update({ passkeyVerified: result.profile.passkeyVerified });
+  }, [update]);
   return (
     <MotionConfig reducedMotion="user">
       <AtlasContext.Provider
@@ -216,6 +234,7 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
           logout,
           toast,
           verifyHuman,
+          registerPasskey,
           sync,
         }}
       >

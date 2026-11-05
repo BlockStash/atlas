@@ -33,6 +33,7 @@ const app = createApp({
   demoWallet: process.env.DEMO_WALLET === "true",
   demoWorldId: process.env.DEMO_WORLD_ID === "true",
   production,
+  passkeyRpId: process.env.PASSKEY_RP_ID || undefined,
   worldId: {
     appId: process.env.WORLD_ID_APP_ID || "",
     rpId: process.env.WORLD_ID_RP_ID || "",

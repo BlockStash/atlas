@@ -26,7 +26,10 @@ import {
   SecurityNote,
 } from "@/components/atlas/ui";
 import { useAtlas } from "@/components/atlas/provider";
-import { WorldIDVerification } from "@/components/world-id/verification";
+import {
+  WorldIDVerification,
+  useDemoWorldId,
+} from "@/components/world-id/verification";
 import { markets, shortAddress } from "@/lib/data";
 import { api } from "@/lib/api";
 const steps = [
@@ -52,7 +55,7 @@ const headings = [
   ],
   [
     "Verify you’re human.",
-    "Use World ID to privately verify that you’re a unique human.",
+    "Use World ID or a device passkey to privately verify that you’re human.",
   ],
   [
     "Where will you go?",
@@ -75,13 +78,13 @@ export function Onboarding() {
   const { wallet, state, ready, update, toast } = useAtlas(),
     router = useRouter();
   const [saving, setSaving] = useState(false);
+  const demoWorldId = useDemoWorldId();
   const step = state.currentStep;
   if (!ready || !wallet) return <LoadingScreen />;
   const canContinue =
     step === 1
-      ? state.worldIdVerified &&
-        (process.env.NEXT_PUBLIC_DEMO_WORLD_ID === "true" ||
-          !state.worldIdVerifiedDemo)
+      ? state.passkeyVerified ||
+        (state.worldIdVerified && (demoWorldId || !state.worldIdVerifiedDemo))
       : step === 2
         ? state.selectedMarkets.length > 0
         : true;
@@ -273,13 +276,13 @@ export function Onboarding() {
                       onClick={() =>
                         update({
                           selectedMarkets:
-                            state.selectedMarkets.length === 5
+                            state.selectedMarkets.length === markets.length
                               ? ["india"]
                               : markets.map((m) => m.id),
                         })
                       }
                     >
-                      {state.selectedMarkets.length === 5
+                      {state.selectedMarkets.length === markets.length
                         ? "Reset selection"
                         : "Select all markets"}
                       <Globe2 size={14} />
@@ -438,15 +441,22 @@ export function Onboarding() {
                       <strong>{shortAddress(wallet.address)}</strong>
                     </div>
                     <div>
-                      <span>World ID</span>
+                      <span>Human verification</span>
                       <strong className="positive">
                         <ShieldCheck size={14} />
-                        Verified
-                        {state.worldIdVerifiedDemo
-                          ? " · Demo"
-                          : state.worldIdEnvironment === "staging"
-                            ? " · Simulator"
-                            : ""}
+                        {[
+                          state.worldIdVerified &&
+                            `World ID${
+                              state.worldIdVerifiedDemo
+                                ? " · Simulated"
+                                : state.worldIdEnvironment === "staging"
+                                  ? " · Simulator"
+                                  : ""
+                            }`,
+                          state.passkeyVerified && "Passkey",
+                        ]
+                          .filter(Boolean)
+                          .join(" + ")}
                       </strong>
                     </div>
                     <div>

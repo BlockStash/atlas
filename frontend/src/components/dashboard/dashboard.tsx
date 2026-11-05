@@ -9,6 +9,7 @@ import {
   ArrowUpRight,
   Check,
   ChevronDown,
+  Coins,
   Compass,
   Globe2,
   Info,
@@ -20,6 +21,8 @@ import { ProtocolSummary } from "@/components/protocol/summary";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
 import { DashboardShell } from "./shell";
+import { CryptoMarket } from "./crypto-market";
+import { useRouter } from "next/navigation";
 import { useAtlas } from "@/components/atlas/provider";
 import { MarketCard, Ticker } from "@/components/atlas/ui";
 import { markets } from "@/lib/data";
@@ -205,7 +208,27 @@ export function Dashboard({
     [period, setPeriod] = useState("1M"),
     [query, setQuery] = useState(""),
     [activeMarket, setActiveMarket] = useState<string | null>(null),
+    [marketTab, setMarketTab] = useState<"global" | "crypto">("global"),
     [retry, setRetry] = useState(0);
+  const router = useRouter();
+  useEffect(() => {
+    if (view !== "markets") return;
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "crypto") setMarketTab("crypto");
+  }, [view]);
+  function selectTab(tab: "global" | "crypto") {
+    setMarketTab(tab);
+    window.history.replaceState(
+      null,
+      "",
+      tab === "crypto" ? "/markets?tab=crypto" : "/markets",
+    );
+  }
+  function openMarket(id: string) {
+    if (id !== "crypto") return setActiveMarket(id);
+    if (view === "markets") selectTab("crypto");
+    else router.push("/markets?tab=crypto");
+  }
   useEffect(() => {
     if (!ready || !wallet) return;
     let alive = true;
@@ -272,7 +295,7 @@ export function Dashboard({
               {view === "dashboard"
                 ? "Every market. Every opportunity. One connected experience."
                 : view === "markets"
-                  ? "Five markets. A single point of access."
+                  ? "Five stock markets and crypto. A single point of access."
                   : view === "portfolio"
                     ? "A clear view of your investments across borders."
                     : "Your crypto assets, together in one place."}
@@ -417,7 +440,32 @@ export function Dashboard({
             </div>
           </div>
         )}
-        {(view === "dashboard" || view === "markets") && (
+        {view === "markets" && (
+          <div className="ens-tabs market-tabs" role="tablist">
+            {(
+              [
+                ["global", "Global markets"],
+                ["crypto", "Crypto tokens & assets"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={marketTab === id}
+                className={marketTab === id ? "active" : ""}
+                onClick={() => selectTab(id)}
+              >
+                {id === "global" ? <Globe2 size={14} /> : <Coins size={14} />}
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {view === "markets" && marketTab === "crypto" && (
+          <CryptoMarket query={query} />
+        )}
+        {(view === "dashboard" ||
+          (view === "markets" && marketTab === "global")) && (
           <section className="market-overview" id="tour-markets">
             <div className="section-heading">
               <div>
@@ -446,7 +494,7 @@ export function Dashboard({
                   key={m.id}
                   market={m}
                   selected={state.selectedMarkets.includes(m.id)}
-                  onClick={() => setActiveMarket(m.id)}
+                  onClick={() => openMarket(m.id)}
                 />
               ))}
             </div>

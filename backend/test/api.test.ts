@@ -156,7 +156,7 @@ test("mutation rejects foreign origins, invalid market selection and malformed J
     .send("{broken")
     .expect(400);
   const markets = await agent.get("/api/markets").expect(200);
-  assert.equal(markets.body.markets.length, 5);
+  assert.equal(markets.body.markets.length, 6);
 });
 
 test("Sepolia sign-in and World ID proof verification bind action, wallet, environment and nonce", async () => {
@@ -499,4 +499,79 @@ test("ENS login requires the resolved wallet signature and links only server-ver
       signature: await wallet.signMessage(changed.body.message),
     })
     .expect(409);
+});
+test("passkey registration issues localhost options and rejects forged responses", async () => {
+  const { app } = setup("passkey", { demoWorldId: false });
+  const agent = request.agent(app);
+  await agent.post("/api/auth/demo").send({}).expect(200);
+  await agent
+    .post("/api/passkey/register/verify")
+    .send({ response: { id: "x" } })
+    .expect(400);
+  const options = await agent
+    .post("/api/passkey/register/options")
+    .send({})
+    .expect(200);
+  assert.equal(options.body.rp.id, "localhost");
+  assert.equal(
+    options.body.authenticatorSelection.userVerification,
+    "required",
+  );
+  await agent
+    .post("/api/passkey/register/verify")
+    .send({
+      response: { id: "x", rawId: "x", type: "public-key", response: {} },
+    })
+    .expect(400);
+  const profile = await agent.get("/api/profile").expect(200);
+  assert.equal(profile.body.passkeyVerified, false);
+  await agent
+    .put("/api/profile")
+    .send({ onboardingComplete: true })
+    .expect(409);
+});
+test("simulated crypto trades debit cash, track holdings and reject overspend", async () => {
+  const { app } = setup("crypto");
+  const agent = request.agent(app);
+  await agent.post("/api/auth/demo").send({}).expect(200);
+  const initial = await agent.get("/api/crypto").expect(200);
+  assert.equal(initial.body.account.cashMicros, "10000000000");
+  assert.ok(
+    initial.body.assets.some((a: { symbol: string }) => a.symbol === "BTC"),
+  );
+  const bought = await agent
+    .post("/api/crypto/trade")
+    .send({ symbol: "ETH", side: "buy", amount: "1000" })
+    .expect(200);
+  assert.equal(bought.body.account.cashMicros, "9000000000");
+  const qty = BigInt(bought.body.account.holdings.ETH.quantity);
+  // $1000 minus 0.10% fee at $3612.48 ≈ 0.27654 ETH
+  assert.ok(qty > 27_650_000n && qty < 27_660_000n);
+  await agent
+    .post("/api/crypto/trade")
+    .send({ symbol: "ETH", side: "sell", amount: "5" })
+    .expect(400);
+  await agent
+    .post("/api/crypto/trade")
+    .send({ symbol: "BTC", side: "buy", amount: "999999" })
+    .expect(400);
+  await agent
+    .post("/api/crypto/trade")
+    .send({ symbol: "NOPE", side: "buy", amount: "1" })
+    .expect(404);
+  const sold = await agent
+    .post("/api/crypto/trade")
+    .send({
+      symbol: "ETH",
+      side: "sell",
+      amount: (Number(qty) / 1e8).toFixed(8),
+    })
+    .expect(200);
+  assert.equal(sold.body.account.holdings.ETH, undefined);
+  assert.ok(BigInt(sold.body.account.cashMicros) < 10_000_000_000n);
+  const profile = await agent
+    .put("/api/profile")
+    .send({ selectedMarkets: ["crypto", "usa"] })
+    .expect(200);
+  assert.deepEqual(profile.body.selectedMarkets, ["crypto", "usa"]);
 });

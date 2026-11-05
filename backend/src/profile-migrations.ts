@@ -8,7 +8,7 @@ export function normalizeProfile(
       (profile?.selectedMarkets || ["india"])
         .map((id) => (String(id) === "china" ? "singapore" : id))
         .filter((id) =>
-          ["india", "usa", "uk", "singapore", "europe"].includes(id),
+          ["india", "usa", "uk", "singapore", "europe", "crypto"].includes(id),
         ),
     ),
   ] as MarketId[];

@@ -19,6 +19,18 @@ import {
   type PendingProof,
 } from "./world-id.js";
 import type { WalletSession } from "./types.js";
+import {
+  passkeyConfig,
+  passkeyRegistrationOptions,
+  verifyPasskeyRegistration,
+} from "./passkey.js";
+import type { RegistrationResponseJSON } from "@simplewebauthn/server";
+import {
+  cryptoAssets,
+  defaultCryptoAccount,
+  executeCryptoTrade,
+  FEE_BPS,
+} from "./crypto.js";
 
 export interface AppOptions {
   dataFile: string;
@@ -31,6 +43,7 @@ export interface AppOptions {
   worldIdFetch?: typeof fetch;
   store?: ProfileRepository;
   ensResolve?: (name: string) => Promise<string | null>;
+  passkeyRpId?: string;
 }
 const addressSchema = z
   .string()
@@ -40,9 +53,9 @@ const addressSchema = z
 const profileSchema = z
   .object({
     selectedMarkets: z
-      .array(z.enum(["india", "usa", "uk", "singapore", "europe"]))
+      .array(z.enum(["india", "usa", "uk", "singapore", "europe", "crypto"]))
       .min(1)
-      .max(5)
+      .max(6)
       .transform((value) => [...new Set(value)])
       .optional(),
     preferredAsset: z.enum(["USDT", "ATLAS"]).optional(),
@@ -364,6 +377,7 @@ export function createApp(options: AppOptions) {
     if (existing.productTourComplete) patch.productTourComplete = true;
     if (
       patch.onboardingComplete &&
+      !existing.passkeyVerified &&
       (!existing.worldIdVerified ||
         (existing.worldIdVerifiedDemo &&
           (!options.demoWorldId || options.production)) ||
@@ -373,7 +387,7 @@ export function createApp(options: AppOptions) {
         res,
         409,
         "VERIFICATION_REQUIRED",
-        "Verify with World ID before completing onboarding.",
+        "Verify with World ID or a passkey before completing onboarding.",
       );
       return;
     }
@@ -434,6 +448,112 @@ export function createApp(options: AppOptions) {
     const { nullifier, ...publicResult } = result;
     void nullifier;
     res.json({ ...publicResult, profile });
+  });
+  const passkeys = passkeyConfig(options.frontendOrigin, options.passkeyRpId);
+  const passkeyChallenges = new Map<
+    string,
+    { challenge: string; address: string; expiresAt: number }
+  >();
+  app.post(
+    "/api/passkey/register/options",
+    limit,
+    authenticated,
+    async (req, res) => {
+      const wallet = res.locals.wallet as WalletSession;
+      const profile = await store.get(wallet.address);
+      for (const [key, value] of passkeyChallenges)
+        if (value.expiresAt <= Date.now()) passkeyChallenges.delete(key);
+      const registration = await passkeyRegistrationOptions(
+        passkeys,
+        wallet.address,
+        profile.passkeyCredentialId,
+      );
+      passkeyChallenges.set(req.cookies[COOKIE] as string, {
+        challenge: registration.challenge,
+        address: wallet.address,
+        expiresAt: Date.now() + CHALLENGE_TTL,
+      });
+      res.set("Cache-Control", "no-store").json(registration);
+    },
+  );
+  app.post(
+    "/api/passkey/register/verify",
+    limit,
+    authenticated,
+    async (req, res) => {
+      const wallet = res.locals.wallet as WalletSession;
+      const { response } = z
+        .object({ response: z.record(z.string(), z.unknown()) })
+        .strict()
+        .parse(req.body);
+      const sessionToken = req.cookies[COOKIE] as string;
+      const pending = passkeyChallenges.get(sessionToken);
+      passkeyChallenges.delete(sessionToken); // Single use, even on failure.
+      if (
+        !pending ||
+        pending.expiresAt <= Date.now() ||
+        pending.address !== wallet.address
+      )
+        throw new VerificationError(
+          "PASSKEY_CHALLENGE_EXPIRED",
+          "Passkey request expired. Please try again.",
+          400,
+        );
+      const credential = await verifyPasskeyRegistration(
+        passkeys,
+        response as unknown as RegistrationResponseJSON,
+        pending.challenge,
+      );
+      const profile = await store.update(wallet.address, {
+        ...credential,
+        passkeyVerified: true,
+        passkeyVerifiedAt: new Date().toISOString(),
+      });
+      res.json({ verified: true, profile });
+    },
+  );
+  // Serialize simulated trades per wallet so concurrent requests cannot double-spend.
+  const cryptoLocks = new Map<string, Promise<unknown>>();
+  function withCryptoLock<T>(address: string, run: () => Promise<T>) {
+    const previous = cryptoLocks.get(address) ?? Promise.resolve();
+    const result = previous.catch(() => {}).then(run);
+    const tail = result.catch(() => {});
+    cryptoLocks.set(address, tail);
+    void tail.then(() => {
+      if (cryptoLocks.get(address) === tail) cryptoLocks.delete(address);
+    });
+    return result;
+  }
+  app.get("/api/crypto", authenticated, async (_req, res) => {
+    const wallet = res.locals.wallet as WalletSession;
+    const profile = await store.get(wallet.address);
+    res.set("Cache-Control", "no-store").json({
+      demo: true,
+      feeBps: Number(FEE_BPS),
+      assets: cryptoAssets,
+      account: profile.cryptoAccount ?? defaultCryptoAccount(),
+    });
+  });
+  app.post("/api/crypto/trade", limit, authenticated, async (req, res) => {
+    const wallet = res.locals.wallet as WalletSession;
+    const input = z
+      .object({
+        symbol: z.string().min(1).max(12),
+        side: z.enum(["buy", "sell"]),
+        amount: z.string().min(1).max(40),
+      })
+      .strict()
+      .parse(req.body);
+    const result = await withCryptoLock(wallet.address, async () => {
+      const profile = await store.get(wallet.address);
+      const { account, trade } = executeCryptoTrade(
+        profile.cryptoAccount ?? defaultCryptoAccount(),
+        input,
+      );
+      await store.update(wallet.address, { cryptoAccount: account });
+      return { account, trade };
+    });
+    res.json({ demo: true, ...result });
   });
   app.get("/api/markets", (_req, res) => res.json({ demo: true, markets }));
   app.get("/api/portfolio", authenticated, (_req, res) => {

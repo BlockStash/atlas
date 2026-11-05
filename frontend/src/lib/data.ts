@@ -60,6 +60,18 @@ export const markets: MarketPreference[] = [
     change: "+0.68%",
     open: true,
   },
+  {
+    id: "crypto",
+    name: "Crypto",
+    flag: "🪙",
+    exchange: "Tokens · Digital assets · 24/7",
+    currency: "USDT",
+    zone: "UTC",
+    index: "BTC",
+    value: "97,240.15",
+    change: "+1.84%",
+    open: true,
+  },
 ];
 export const holdings = [
   {

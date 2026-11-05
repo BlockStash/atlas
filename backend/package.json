@@ -17,6 +17,7 @@
   "dependencies": {
     "@arkiv-network/sdk": "^1.0.1",
     "@ensdomains/ensjs": "^5.2.12",
+    "@simplewebauthn/server": "^13.3.3",
     "@worldcoin/idkit-core": "^4.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

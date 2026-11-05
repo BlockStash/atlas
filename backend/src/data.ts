@@ -64,6 +64,19 @@ export const markets = [
     open: true,
     time: "09:15 CET",
   },
+  {
+    id: "crypto",
+    name: "Crypto",
+    flag: "🪙",
+    exchange: "Tokens · Digital assets · 24/7",
+    currency: "USDT",
+    timezone: "UTC",
+    index: "BTC",
+    value: "97,240.15",
+    change: "+1.84%",
+    open: true,
+    time: "24/7",
+  },
 ];
 export const portfolio = {
   demo: true,

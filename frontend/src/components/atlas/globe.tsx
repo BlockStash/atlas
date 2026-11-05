@@ -211,43 +211,45 @@ export function Globe({ onMarket }: { onMarket: () => void }) {
           strokeDasharray="200 750"
         />
       </svg>
-      {markets.map((m, i) => (
-        <motion.button
-          key={m.id}
-          className={`floating-market floating-${m.id}`}
-          onClick={onMarket}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: [0, -5, 0] }}
-          transition={{
-            opacity: { delay: 0.1 * i, duration: 0.5 },
-            y: {
-              delay: i * 0.7,
-              duration: 7,
-              repeat: Infinity,
-              ease: "easeInOut",
-            },
-          }}
-        >
-          <div>
-            <span className="flag">{m.flag}</span>
-            <strong>
-              {m.name === "United States"
-                ? "UNITED STATES"
-                : m.name === "United Kingdom"
-                  ? "UNITED KINGDOM"
-                  : m.name.toUpperCase()}
-            </strong>
-            <ArrowUpRight size={12} />
-          </div>
-          <p>{m.exchange}</p>
-          <footer>
-            <MarketClock market={m} />
-            <span className={`market-status ${m.open ? "" : "closed"}`}>
-              {m.open ? "● OPEN" : "○ CLOSED"}
-            </span>
-          </footer>
-        </motion.button>
-      ))}
+      {markets
+        .filter((m) => m.id !== "crypto")
+        .map((m, i) => (
+          <motion.button
+            key={m.id}
+            className={`floating-market floating-${m.id}`}
+            onClick={onMarket}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: [0, -5, 0] }}
+            transition={{
+              opacity: { delay: 0.1 * i, duration: 0.5 },
+              y: {
+                delay: i * 0.7,
+                duration: 7,
+                repeat: Infinity,
+                ease: "easeInOut",
+              },
+            }}
+          >
+            <div>
+              <span className="flag">{m.flag}</span>
+              <strong>
+                {m.name === "United States"
+                  ? "UNITED STATES"
+                  : m.name === "United Kingdom"
+                    ? "UNITED KINGDOM"
+                    : m.name.toUpperCase()}
+              </strong>
+              <ArrowUpRight size={12} />
+            </div>
+            <p>{m.exchange}</p>
+            <footer>
+              <MarketClock market={m} />
+              <span className={`market-status ${m.open ? "" : "closed"}`}>
+                {m.open ? "● OPEN" : "○ CLOSED"}
+              </span>
+            </footer>
+          </motion.button>
+        ))}
       <div className="globe-caption">
         <span className="status-dot" /> CONNECTED BY ATLAS
         <span className="caption-line" />
