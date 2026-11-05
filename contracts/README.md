@@ -167,6 +167,8 @@ The script deploys one implementation, five proxies and one engine, plus USDT/va
 
 Final manifest: `contracts/deployments/sepolia-v2.json`. Pending checkpoint: `sepolia-v2.pending.json`. Keep the pending file and rerun the same command after a failure. Constructor/setup estimates retry before sending; submitted transactions are not automatically resubmitted. Do not run concurrent deploy processes for the same signer. Legacy deployment files are preserved and are not accepted as v2 app configuration.
 
+Gas estimates are padded by 25% and checked with a read-only execution before submission. If an underestimated budget runs out of gas, the script increases and verifies it before sending. The default total-budget ceiling is the smaller of the live block allowance and 50,000,000 gas. It is not hardcoded to the old execution-gas ceiling: current Sepolia state-creation accounting can require a higher total transaction budget ([EIP-8037](https://eips.ethereum.org/EIPS/eip-8037)). Contract reverts with error data are preserved immediately. Large batches may need splitting to fit the budget. A reverted setup transaction reports its method, hash and receipt gas usage; resuming checks existing onchain stock state before onboarding again. Upstream RPC reasons and the deployment/setup step are included in failures.
+
 Configure `backend/.env` and restart the backend:
 
 ```dotenv
