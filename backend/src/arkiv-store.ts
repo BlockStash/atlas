@@ -230,6 +230,10 @@ export class ArkivProfileStore implements ProfileRepository {
   }
   private failure(error: unknown) {
     if (error instanceof VerificationError) return error;
+    console.error(
+      "[arkiv] profile operation failed:",
+      error instanceof Error ? error.message : error,
+    );
     return new VerificationError(
       "ARKIV_UNAVAILABLE",
       "Atlas could not save or load your Arkiv profile. Check the Rabdi connection, signer funding and encryption configuration.",
