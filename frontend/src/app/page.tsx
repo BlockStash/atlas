@@ -233,9 +233,9 @@ export default function Landing() {
               <h2>One Wallet. Five Markets. One Global Portfolio.</h2>
               <p>
                 Atlas is a crypto-native global investment concept connecting
-                India, the United States, the United Kingdom, China, and Europe.
-                Explore a personalized investor demonstration with USDT and
-                ATLAS settlement preferences.
+                India, the United States, the United Kingdom, Singapore, and
+                Europe. Explore a personalized investor demonstration with USDT
+                and ATLAS settlement preferences.
               </p>
             </>
           )}

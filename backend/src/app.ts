@@ -1,3 +1,4 @@
+import { protocolRouter } from "./protocol/router.js";
 import express, { type RequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -39,7 +40,7 @@ const addressSchema = z
 const profileSchema = z
   .object({
     selectedMarkets: z
-      .array(z.enum(["india", "usa", "uk", "china", "europe"]))
+      .array(z.enum(["india", "usa", "uk", "singapore", "europe"]))
       .min(1)
       .max(5)
       .transform((value) => [...new Set(value)])
@@ -439,6 +440,7 @@ export function createApp(options: AppOptions) {
     res.set("Cache-Control", "no-store");
     res.json(portfolio);
   });
+  app.use("/api/protocol", protocolRouter());
   app.use((_req, res) =>
     fail(res, 404, "NOT_FOUND", "This Atlas endpoint does not exist."),
   );

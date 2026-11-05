@@ -4,16 +4,24 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "setup": "npm install --prefix frontend && npm install --prefix backend && node scripts/setup.mjs",
-    "build": "npm run build --prefix backend && npm run build --prefix frontend",
-    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "setup": "npm install --prefix frontend && npm install --prefix backend && npm install --prefix contracts && npm install --prefix admin && node scripts/setup.mjs",
+    "build": "npm run build --prefix contracts && npm run build --prefix backend && npm run build --prefix frontend && npm run build --prefix admin",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend && npm run typecheck --prefix admin",
     "lint": "npm run lint --prefix frontend",
-    "test": "npm test --prefix backend && npm run test:wallet",
+    "test": "npm test --prefix backend && npm run test:wallet && npm run test --prefix contracts",
     "test:smoke": "node scripts/smoke.mjs",
-    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" README.md",
-    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" README.md",
+    "format": "prettier --write \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" \"admin/src/**/*.{ts,tsx,css}\" \"admin/*.{json,ts,html}\" README.md",
+    "format:check": "prettier --check \"frontend/src/**/*.{ts,tsx,css}\" \"backend/{src,test}/**/*.ts\" \"scripts/*.mjs\" \"*.json\" \"frontend/*.{json,ts,mjs,md}\" \"backend/*.{json,md}\" \"admin/src/**/*.{ts,tsx,css}\" \"admin/*.{json,ts,html}\" README.md",
     "test:wallet": "node --import ./backend/node_modules/tsx/dist/loader.mjs --test frontend/test/*.test.ts",
-    "arkiv:check": "npm run arkiv:check --prefix backend"
+    "arkiv:check": "npm run arkiv:check --prefix backend",
+    "protocol:build": "npm run build --prefix contracts",
+    "protocol:test": "npm run test --prefix contracts",
+    "protocol:analyze": "npm run analyze --prefix contracts",
+    "prices:update": "npm run prices:update --prefix backend",
+    "dev:admin": "npm run dev --prefix admin",
+    "prices:watch": "npm run prices:watch --prefix backend",
+    "upgrade:validate": "npm run upgrade:validate --prefix contracts",
+    "protocol:smoke": "npm run protocol:build && node scripts/protocol-smoke.mjs"
   },
   "devDependencies": {
     "prettier": "^3.9.10"

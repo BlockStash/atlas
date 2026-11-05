@@ -13,6 +13,8 @@ import {
   Search,
   ShieldCheck,
   Wallet,
+  Landmark,
+  ChartCandlestick,
   X,
 } from "lucide-react";
 import {
@@ -27,6 +29,8 @@ const links = [
   { href: "/markets", label: "Global markets", Icon: Globe2 },
   { href: "/portfolio", label: "My portfolio", Icon: PieChart },
   { href: "/wallet", label: "Wallet", Icon: Wallet },
+  { href: "/vault", label: "Atlas Vault", Icon: Landmark },
+  { href: "/trade", label: "Synthetic stocks", Icon: ChartCandlestick },
 ];
 export function DashboardShell({
   children,

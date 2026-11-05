@@ -28,6 +28,8 @@ for (const route of [
   "/markets",
   "/portfolio",
   "/wallet",
+  "/vault",
+  "/trade",
 ]) {
   const response = await fetch(`${base}${route}`);
   assert.equal(response.status, 200, route);
@@ -37,7 +39,17 @@ for (const route of [
     `${route} renders app shell`,
   );
 }
+const adminRedirect = await fetch(`${base}/admin`, { redirect: "manual" });
+assert.ok(
+  [307, 308].includes(adminRedirect.status),
+  "Admin bookmarks redirect to the independent dashboard",
+);
 const health = await request("/health");
+const catalog = await request("/protocol/catalog");
+assert.ok(catalog.stocks.length >= 50);
+const protocol = await request("/protocol/config");
+assert.equal(protocol.chainId, 11155111);
+assert.equal(typeof protocol.configured, "boolean");
 if (!health.demo.wallet || !health.demo.worldId) {
   const { Wallet } = createRequire(
     new URL("../backend/package.json", import.meta.url),
@@ -81,7 +93,7 @@ await request("/profile", {
 await request("/profile", {
   method: "PUT",
   body: {
-    selectedMarkets: ["india", "usa", "uk", "china", "europe"],
+    selectedMarkets: ["india", "usa", "uk", "singapore", "europe"],
     preferredAsset: "ATLAS",
     experienceLevel: "intermediate",
     currentStep: 1,

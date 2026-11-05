@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
+import { ProtocolSummary } from "@/components/protocol/summary";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
 import { DashboardShell } from "./shell";
@@ -282,6 +283,7 @@ export function Dashboard({
             World ID verified{state.worldIdVerifiedDemo && <small>DEMO</small>}
           </span>
         </div>
+        <ProtocolSummary />
         {error && (
           <div className="error-box dashboard-error" role="alert">
             {error}
