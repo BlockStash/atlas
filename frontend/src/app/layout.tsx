@@ -5,6 +5,7 @@ import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 import "./theme-light.generated.css";
 import "./theme-light.css";
+import "./theme-ethglobal.css";
 export const metadata: Metadata = {
   title: "Atlas — Smart Global Finance Strategy Platform",
   description:

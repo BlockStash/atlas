@@ -23,7 +23,7 @@ import {
 } from "@/components/atlas/ui";
 import { Globe } from "@/components/atlas/globe";
 import { useAtlas } from "@/components/atlas/provider";
-import { ThemeToggle } from "@/components/atlas/theme";
+import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
 export default function Landing() {
   const { setModal } = useAtlas();
   const [mobile, setMobile] = useState(false),
@@ -67,7 +67,10 @@ export default function Landing() {
           </button>
         </nav>
         <div className="nav-actions">
-          <ThemeToggle />
+          <span className="theme-switches">
+            <SkinToggle />
+            <ThemeToggle />
+          </span>
           <button className="demo-link" onClick={() => setModal(true)}>
             Investor demo
             <ArrowUpRight size={14} />

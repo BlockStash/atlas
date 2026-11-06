@@ -2,41 +2,35 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
   ArrowUp,
   AtSign,
   Compass,
-  Copy,
-  GitFork,
   Search,
   Sparkles,
-  Trophy,
   Wand2,
 } from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
 import { DashboardShell } from "@/components/dashboard/shell";
 import {
-  CREATOR_FEE_BPS,
   compact,
   headlinePerformance,
   isEns,
   pct,
-  sameAddress,
   strategyCategory,
-  usd,
   type Strategy,
 } from "@/lib/strategies";
 import { StrategyIconBadge } from "./icon";
 import { creatorHref, useStrategyStore } from "./ui";
 
-type Mode = "build" | "explore" | "clone";
+type Mode = "build" | "explore";
 
 const MODES: {
   id: Mode;
   label: string;
   Icon: typeof Wand2;
-  hint: string;
   action: string;
   examples: string[];
 }[] = [
@@ -44,22 +38,22 @@ const MODES: {
     id: "build",
     label: "Build",
     Icon: Wand2,
-    hint: `Atlas AI turns your words into a backtestable strategy. Publish it and earn ${CREATOR_FEE_BPS / 100}% of every deployment.`,
-    action: "Build with AI",
+    action: "Build strategy",
     examples: [
+      // Each one builds end to end through Atlas AI (checked against the backend parser).
       "Buy AI chip leaders in the US and Taiwan, rebalance monthly",
-      "Dividend stocks in India with a 10% stop loss",
+      "Buy Apple with 1,000 USDT now. Sell at +8% or -3%.",
+      "Dividend portfolio of Indian bluechips with a 10% stop loss",
       "60% NVDA, 40% MSFT, buy the dip when RSI drops below 30",
       "Global all-weather fund, conservative, rebalance quarterly",
-      "Momentum on European industrials with a trend filter",
+      "Momentum portfolio of European industrials with a trend filter",
     ],
   },
   {
     id: "explore",
-    label: "Explore",
+    label: "Explore strategy",
     Icon: Compass,
-    hint: "Search the community marketplace by idea, ticker, market, creator or ENS name.",
-    action: "Explore",
+    action: "Explore strategy",
     examples: [
       "us momentum",
       "india income",
@@ -67,34 +61,6 @@ const MODES: {
       "NVDA",
       "global balanced",
     ],
-  },
-  {
-    id: "clone",
-    label: "Clone",
-    Icon: GitFork,
-    hint: "Fork a proven strategy like a repo, then tweak it with AI. The original creator still earns on deployments.",
-    action: "Find to clone",
-    examples: [
-      "AI leaders",
-      "US Megacap",
-      "dividend",
-      "Europe industrials",
-      "barbell",
-    ],
-  },
-];
-
-/** Build ideas offered as recommendations; picking one fills the prompt. */
-const BUILD_IDEAS = [
-  {
-    title: "AI chip momentum",
-    prompt:
-      "Momentum strategy on AI chip makers in the US and Taiwan, rebalance monthly",
-  },
-  {
-    title: "Defensive dividend income",
-    prompt:
-      "Conservative income strategy with dividend payers in India, the US and UK, 10% stop loss",
   },
 ];
 
@@ -126,7 +92,7 @@ function matchStrategies(list: Strategy[], query: string) {
 }
 
 export function StrategyHomePage() {
-  const { wallet, state, toast } = useAtlas();
+  const { state, toast } = useAtlas();
   const router = useRouter();
   const store = useStrategyStore();
   const input = useRef<HTMLTextAreaElement>(null);
@@ -136,18 +102,31 @@ export function StrategyHomePage() {
     [focused, setFocused] = useState(false),
     [picked, setPicked] = useState(false),
     [active, setActive] = useState(-1),
-    [shown, setShown] = useState<{ mode: Mode; text: string } | null>(null);
+    [shown, setShown] = useState<{ mode: Mode; text: string } | null>(null),
+    // Build mode: one example prompt at a time, as a badge, changing every 2 seconds.
+    [idea, setIdea] = useState(0),
+    [ideaPaused, setIdeaPaused] = useState(false);
   const current = MODES.find((m) => m.id === mode)!;
+  const ideas = MODES[0].examples;
+  useEffect(() => {
+    if (mode !== "build" || ideaPaused) return;
+    const t = setInterval(() => setIdea((i) => (i + 1) % ideas.length), 2000);
+    return () => clearInterval(t);
+  }, [mode, ideaPaused, ideas.length]);
 
   // Typewriter placeholder: every use case until the user picks a mode, then that mode only.
   const examples = useMemo(
     () =>
       picked
         ? current.examples.map((t) => ({ mode: current.id, text: t }))
-        : ALL_EXAMPLES,
+        : ALL_EXAMPLES.filter((e) => e.mode === "explore"),
     [picked, current],
   );
   useEffect(() => {
+    if (mode === "build") {
+      setTyped("");
+      return;
+    }
     let example = 0,
       chars = 0,
       deleting = false;
@@ -174,7 +153,7 @@ export function StrategyHomePage() {
     };
     let timer = setTimeout(tick, 300);
     return () => clearTimeout(timer);
-  }, [examples]);
+  }, [examples, mode]);
 
   const everything = useMemo(() => {
     const seen = new Set<string>();
@@ -182,28 +161,6 @@ export function StrategyHomePage() {
       seen.has(s.id) ? false : (seen.add(s.id), true),
     );
   }, [store.explore, store.mine]);
-  // A few recommendations: best performer, most cloned (not yours), and two build ideas.
-  const recommended = useMemo(() => {
-    const others = store.explore.filter(
-      (s) => !sameAddress(s.creator.address, wallet?.address),
-    );
-    const ret = (s: Strategy) =>
-      headlinePerformance(s)?.returns["1Y"] ??
-      headlinePerformance(s)?.returns["6M"] ??
-      -Infinity;
-    const top = [...others].sort((a, b) => ret(b) - ret(a))[0];
-    const cloned = [...others]
-      .filter((s) => s.id !== top?.id)
-      .sort((a, b) => b.stats.clones - a.stats.clones)[0];
-    return { top, cloned };
-  }, [store.explore, wallet?.address]);
-  const matches = useMemo(
-    () =>
-      mode === "build"
-        ? []
-        : matchStrategies(mode === "clone" ? store.explore : everything, text),
-    [mode, text, store.explore, everything],
-  );
 
   // Explore suggestions: plain text search, ENS names (creators), strategies.
   const suggestions = useMemo((): Suggestion[] => {
@@ -266,55 +223,21 @@ export function StrategyHomePage() {
   const showSuggestions =
     mode === "explore" && (focused || !!text.trim()) && suggestions.length > 0;
 
-  const totalAum = store.explore.reduce((t, s) => t + s.stats.aum, 0);
-  const totalEarned = store.explore.reduce(
-    (t, s) => t + s.stats.creatorEarnings,
-    0,
-  );
-  const totalClones = store.explore.reduce((t, s) => t + s.stats.clones, 0);
   const firstName = state.ensName?.split(".")[0];
 
-  async function clone(s: Strategy) {
-    try {
-      const copy = await store.clone(s.id);
-      toast(`Cloned “${s.name}”. Tweak it with Atlas AI, then backtest.`);
-      router.push(`/strategies/${copy.id}?edit=1`);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : "Could not clone this strategy.");
-    }
-  }
-
   function submit() {
-    const t = text.trim();
+    // An empty Build bar takes the idea on the badge.
+    const t = text.trim() || (mode === "build" ? ideas[idea] : "");
     if (mode === "build") {
       if (t.length < 12) {
-        toast(
-          "Describe your strategy in a sentence, or pick a recommendation below.",
-        );
+        toast("Describe your strategy in a sentence or two.");
         input.current?.focus();
         return;
       }
       router.push(`/strategies/new?prompt=${encodeURIComponent(t)}`);
-    } else if (mode === "explore") {
-      router.push(t ? `/strategies?q=${encodeURIComponent(t)}` : "/strategies");
     } else {
-      const top = matches.find(
-        (s) => !sameAddress(s.creator.address, wallet?.address),
-      );
-      if (top) clone(top);
-      else
-        router.push(
-          t ? `/strategies?q=${encodeURIComponent(t)}` : "/strategies",
-        );
+      router.push(t ? `/strategies?q=${encodeURIComponent(t)}` : "/strategies");
     }
-  }
-
-  function applyIdea(prompt: string) {
-    setMode("build");
-    setPicked(true);
-    setText(prompt);
-    input.current?.focus({ preventScroll: true });
-    input.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   return (
@@ -414,7 +337,20 @@ export function StrategyHomePage() {
                       }
                       if (e.key === "Escape") setText("");
                       // Tab on an empty bar takes the example being shown.
-                      if (e.key === "Tab" && !e.shiftKey && !text && shown) {
+                      if (
+                        e.key === "Tab" &&
+                        !e.shiftKey &&
+                        !text &&
+                        mode === "build"
+                      ) {
+                        e.preventDefault();
+                        setText(ideas[idea]);
+                      } else if (
+                        e.key === "Tab" &&
+                        !e.shiftKey &&
+                        !text &&
+                        shown
+                      ) {
                         e.preventDefault();
                         setMode(shown.mode);
                         setPicked(true);
@@ -422,9 +358,11 @@ export function StrategyHomePage() {
                       }
                     }}
                     placeholder={
-                      typed
-                        ? `${picked || !shown ? "" : `${MODES.find((m) => m.id === shown.mode)!.label} · `}${typed}▍`
-                        : ""
+                      mode === "build"
+                        ? "Describe your strategy, or build the idea below…"
+                        : typed
+                          ? `${picked || !shown ? "" : `${MODES.find((m) => m.id === shown.mode)!.label} · `}${typed}▍`
+                          : ""
                     }
                     aria-label={current.action}
                     maxLength={1000}
@@ -440,14 +378,44 @@ export function StrategyHomePage() {
                     <ArrowUp size={18} />
                   </button>
                 </div>
-                <p className="ai-hint">
-                  {current.hint}
-                  {!text && (
-                    <span className="ai-tab-hint">
-                      <kbd>Tab</kbd> use example
+                {mode === "build" && (
+                  <div
+                    className="ai-idea"
+                    onMouseEnter={() => setIdeaPaused(true)}
+                    onMouseLeave={() => setIdeaPaused(false)}
+                    onFocus={() => setIdeaPaused(true)}
+                    onBlur={() => setIdeaPaused(false)}
+                  >
+                    <span className="ai-idea-label">
+                      <Wand2 size={13} /> Try
                     </span>
-                  )}
-                </p>
+                    <div className="ai-idea-slot" aria-live="polite">
+                      <AnimatePresence mode="wait" initial={false}>
+                        <motion.button
+                          key={idea}
+                          type="button"
+                          className="ai-idea-badge"
+                          title="Use this prompt"
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.25 }}
+                          onClick={() => {
+                            setText(ideas[idea]);
+                            input.current?.focus();
+                          }}
+                        >
+                          {ideas[idea]}
+                        </motion.button>
+                      </AnimatePresence>
+                    </div>
+                    <span className="ai-idea-dots" aria-hidden>
+                      {ideas.map((_, i) => (
+                        <i key={i} className={i === idea ? "on" : ""} />
+                      ))}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {showSuggestions && (
@@ -458,232 +426,11 @@ export function StrategyHomePage() {
                   onHover={setActive}
                 />
               )}
-              {mode === "clone" && matches.length > 0 && (
-                <ul className="ai-results" role="listbox">
-                  {matches.map((s) => {
-                    const perf = headlinePerformance(s);
-                    const mine = sameAddress(
-                      s.creator.address,
-                      wallet?.address,
-                    );
-                    return (
-                      <li key={s.id}>
-                        <Link
-                          href={`/strategies/${s.id}`}
-                          className="ai-result-main"
-                        >
-                          <StrategyIconBadge icon={s.icon} size={36} />
-                          <span>
-                            <b>{s.name}</b>
-                            <small>
-                              {mine ? "you" : s.creator.name} ·{" "}
-                              {strategyCategory(s).group}
-                            </small>
-                          </span>
-                          <span
-                            className={
-                              (perf?.returns["1Y"] ?? 0) < 0
-                                ? "negative"
-                                : "positive"
-                            }
-                          >
-                            {pct(perf?.returns["1Y"])} <small>1Y</small>
-                          </span>
-                        </Link>
-                        {mode === "clone" && !mine ? (
-                          <button
-                            type="button"
-                            className="btn primary small"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => clone(s)}
-                          >
-                            <Copy size={14} /> Clone
-                          </button>
-                        ) : (
-                          <Link
-                            className="btn secondary small"
-                            href={`/strategies/${s.id}`}
-                          >
-                            Open
-                          </Link>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {mode === "clone" && text.trim() && matches.length === 0 && (
-                <p className="ai-results-empty">
-                  Nothing matches “{text.trim()}” yet.{" "}
-                  <button
-                    type="button"
-                    className="text-button"
-                    onClick={() => setMode("build")}
-                  >
-                    Build it with AI instead <ArrowRight size={14} />
-                  </button>
-                </p>
-              )}
             </div>
           </div>
         </section>
-
-        <section className="ai-recs" aria-label="Recommended for you">
-          <h2>
-            <Sparkles size={18} /> Recommended for you
-          </h2>
-          <div className="ai-recs-grid">
-            {recommended.top && (
-              <Rec
-                tag="Top performer"
-                Icon={Trophy}
-                s={recommended.top}
-                action={
-                  <Link
-                    className="btn secondary small"
-                    href={`/strategies/${recommended.top.id}`}
-                  >
-                    Explore <ArrowRight size={14} />
-                  </Link>
-                }
-              />
-            )}
-            {recommended.cloned && (
-              <Rec
-                tag={`Most cloned · ${recommended.cloned.stats.clones} clones`}
-                Icon={GitFork}
-                s={recommended.cloned}
-                action={
-                  <button
-                    type="button"
-                    className="btn primary small"
-                    onClick={() => clone(recommended.cloned!)}
-                  >
-                    <Copy size={14} /> Clone
-                  </button>
-                }
-              />
-            )}
-            {BUILD_IDEAS.map((idea) => (
-              <article key={idea.title} className="ai-rec idea">
-                <span className="ai-rec-tag">
-                  <Wand2 size={13} /> Build idea
-                </span>
-                <h3>{idea.title}</h3>
-                <p>{idea.prompt}</p>
-                <button
-                  type="button"
-                  className="btn secondary small"
-                  onClick={() => applyIdea(idea.prompt)}
-                >
-                  <Sparkles size={14} /> Use this prompt
-                </button>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="ai-stats">
-          <div>
-            <strong>{store.explore.length}</strong>
-            <span>public strategies</span>
-          </div>
-          <div>
-            <strong>{compact(totalAum)}</strong>
-            <span>aUSDT deployed by users</span>
-          </div>
-          <div>
-            <strong>{usd(totalEarned, 0)}</strong>
-            <span>aUSDT paid to creators</span>
-          </div>
-          <div>
-            <strong>{compact(totalClones)}</strong>
-            <span>strategies cloned</span>
-          </div>
-        </section>
-
-        <section className="ai-paths">
-          {[
-            {
-              Icon: Wand2,
-              title: "Build",
-              text: "Say it in plain words. Atlas AI writes the rules, weights and risk limits, then backtests a year in seconds.",
-              href: "/strategies/new",
-              cta: "Open the studio",
-            },
-            {
-              Icon: Compass,
-              title: "Explore",
-              text: "Browse community strategies with live, paper and backtest track records across six markets.",
-              href: "/strategies",
-              cta: "Browse strategies",
-            },
-            {
-              Icon: GitFork,
-              title: "Clone & earn",
-              text: `Fork any public strategy and make it yours. Publish your own and earn ${CREATOR_FEE_BPS / 100}% of every deployment, clones included.`,
-              href: "/strategies/mine",
-              cta: "My strategies",
-            },
-          ].map(({ Icon, title, text, href, cta }) => (
-            <Link key={title} href={href} className="ai-path">
-              <span className="ai-path-icon">
-                <Icon size={22} />
-              </span>
-              <h2>{title}</h2>
-              <p>{text}</p>
-              <span className="ai-path-cta">
-                {cta} <ArrowRight size={15} />
-              </span>
-            </Link>
-          ))}
-        </section>
-
-        <p className="strategy-disclaimer ai-disclaimer">
-          Demo: strategies, returns and earnings are simulated in your browser
-          until the strategy backend ships. Past or simulated performance does
-          not predict future results.
-        </p>
       </main>
     </DashboardShell>
-  );
-}
-
-function Rec({
-  tag,
-  Icon,
-  s,
-  action,
-}: {
-  tag: string;
-  Icon: typeof Wand2;
-  s: Strategy;
-  action: React.ReactNode;
-}) {
-  const perf = headlinePerformance(s);
-  const r = perf?.returns["1Y"] ?? perf?.returns["6M"] ?? null;
-  const period = perf?.returns["1Y"] != null ? "1Y" : "6M";
-  return (
-    <article className="ai-rec">
-      <span className="ai-rec-tag">
-        <Icon size={13} /> {tag}
-      </span>
-      <Link href={`/strategies/${s.id}`} className="ai-rec-title">
-        <StrategyIconBadge icon={s.icon} size={38} />
-        <h3>{s.name}</h3>
-      </Link>
-      <p>
-        {strategyCategory(s).group} · by {s.creator.name}
-      </p>
-      <div className="ai-rec-foot">
-        {r !== null && (
-          <span className={r < 0 ? "negative" : "positive"}>
-            {pct(r)} <small>{period}</small>
-          </span>
-        )}
-        {action}
-      </div>
-    </article>
   );
 }
 

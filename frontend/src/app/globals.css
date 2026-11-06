@@ -7569,6 +7569,71 @@ th:not(:first-child) {
   font-size: 14px;
   color: #7f93b2;
 }
+.ai-idea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 8px 6px 40px;
+  min-width: 0;
+}
+.ai-idea-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: #7f93b2;
+}
+.ai-idea-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.ai-idea-badge {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #8fb3ff40;
+  background: #8fb3ff14;
+  color: #c9d8f2;
+  font-size: 13px;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.ai-idea-badge:hover,
+.ai-idea-badge:focus-visible {
+  background: #8fb3ff26;
+  border-color: #8fb3ff80;
+}
+.ai-idea-dots {
+  display: flex;
+  gap: 4px;
+  flex: none;
+}
+.ai-idea-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #7f93b240;
+  transition: background 0.2s;
+}
+.ai-idea-dots i.on {
+  background: #8fb3ff;
+}
+@media (max-width: 640px) {
+  .ai-idea {
+    margin-left: 8px;
+  }
+  .ai-idea-dots {
+    display: none;
+  }
+}
 .ai-results {
   position: absolute;
   top: calc(100% + 10px);

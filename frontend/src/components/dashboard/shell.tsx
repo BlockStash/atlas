@@ -26,7 +26,7 @@ import {
   LoadingScreen,
 } from "@/components/atlas/ui";
 import { useAtlas } from "@/components/atlas/provider";
-import { ThemeToggle } from "@/components/atlas/theme";
+import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
 import { ENSName } from "@/components/wallet/ens-name";
 const links = [
   { href: "/home", label: "Atlas AI home", Icon: Sparkles },
@@ -162,7 +162,10 @@ export function DashboardShell({
             <div id="tour-clock">
               <GlobalMarketClock />
             </div>
-            <ThemeToggle />
+            <span className="theme-switches">
+              <SkinToggle />
+              <ThemeToggle />
+            </span>
             <button
               className="notification-button"
               aria-label="Notifications"

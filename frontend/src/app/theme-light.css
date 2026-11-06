@@ -152,3 +152,21 @@
 :root[data-theme="light"] .studio-plan-loading {
   color: #50617a;
 }
+:root[data-theme="light"] .ai-idea-label {
+  color: #596e8c;
+}
+:root[data-theme="light"] .ai-idea-badge {
+  border-color: #4980ff55;
+  background: #4980ff12;
+  color: #1c2c48;
+}
+:root[data-theme="light"] .ai-idea-badge:hover,
+:root[data-theme="light"] .ai-idea-badge:focus-visible {
+  background: #4980ff26;
+}
+:root[data-theme="light"] .ai-idea-dots i {
+  background: #0000001f;
+}
+:root[data-theme="light"] .ai-idea-dots i.on {
+  background: #2f62c8;
+}

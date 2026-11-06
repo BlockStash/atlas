@@ -1,0 +1,240 @@
+/*
+ * ETHGlobal Mumbai skin — `data-skin="ethglobal"` on <html>, combined with light or dark mode.
+ * Palette from the ETHGlobal Mumbai artwork: midnight indigo sky, marigold and saffron lanterns,
+ * vermilion lotus, peacock teal. The artwork itself sits behind the app, veiled for legibility.
+ */
+
+.theme-switches {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.skin-toggle.on {
+  color: #f4b23a;
+  border-color: #f4b23a73;
+  background: #f4b23a1a;
+}
+:root[data-theme="light"] .skin-toggle.on {
+  color: #c2410c;
+  border-color: #c2410c66;
+  background: #c2410c14;
+}
+
+/* ───────────── Shared ───────────── */
+:root[data-skin="ethglobal"] body {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--eg-veil), var(--eg-veil)),
+    url("/ethglobal/mumbai.webp");
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  min-height: 100dvh;
+}
+@media (max-width: 900px) {
+  :root[data-skin="ethglobal"] body {
+    /* Fixed backgrounds jank on mobile; scroll with the page and load the smaller image. */
+    background-attachment: scroll;
+    background-image:
+      linear-gradient(var(--eg-veil), var(--eg-veil)),
+      url("/ethglobal/mumbai-1280.webp");
+  }
+}
+/* A toran (festive garland) strip across the top of every page. */
+:root[data-skin="ethglobal"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: 4px;
+  z-index: 100;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    #f4b23a 0 18px,
+    #e4572e 18px 36px,
+    #1f9e8f 36px 54px,
+    #f4b23a 54px 72px,
+    #c2263a 72px 90px
+  );
+}
+:root[data-skin="ethglobal"] .panel,
+:root[data-skin="ethglobal"] .market-card,
+:root[data-skin="ethglobal"] .floating-market,
+:root[data-skin="ethglobal"] .dialog {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+:root[data-skin="ethglobal"] .landing,
+:root[data-skin="ethglobal"] .ai-home {
+  background: transparent;
+}
+:root[data-skin="ethglobal"] .landing-grid,
+:root[data-skin="ethglobal"] .ai-blob,
+:root[data-skin="ethglobal"] .ai-grid {
+  display: none;
+}
+
+/* ───────────── Dark: Mumbai night ───────────── */
+:root[data-skin="ethglobal"]:not([data-theme="light"]) {
+  --bg: #110e2c;
+  --panel: #1a1642;
+  --border: #f4b23a24;
+  --muted: #c3b49a;
+  --text: #fcf3e0;
+  --blue: #f4b23a;
+  --green: #3fc3a4;
+  --red: #ff7b62;
+  --eg-veil: #100c2ad9;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .panel,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .market-card,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .floating-market,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .dialog {
+  background: linear-gradient(140deg, #1d1848e6, #15113ae6);
+  border-color: #f4b23a2e;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .market-card:hover,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .floating-market:hover {
+  background: linear-gradient(140deg, #251f58f0, #1a1546f0);
+  border-color: #f4b23a73;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .app-sidebar,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .app-header {
+  background: #120f30d9;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: #f4b23a26;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .primary {
+  background: linear-gradient(135deg, #f7c04a, #ef8a2b);
+  border-color: #ffd27a;
+  color: #24122a;
+  box-shadow: 0 4px 18px #ef8a2b33;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .primary:hover {
+  background: linear-gradient(135deg, #ffcf63, #f49a3c);
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .secondary {
+  border-color: #f4b23a40;
+  background: #f4b23a0d;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .secondary:hover {
+  background: #f4b23a1f;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .hero h1 > span,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .ai-gradient-text {
+  background: linear-gradient(90deg, #f7c04a, #ef7a3b 55%, #e4475a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"])
+  .app-sidebar
+  nav
+  > a:hover,
+:root[data-skin="ethglobal"]:not([data-theme="light"])
+  .app-sidebar
+  nav
+  > a.active {
+  background: #f4b23a17;
+  border-color: #f4b23a33;
+  color: #fde7b8;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .demo-badge {
+  border-color: #f4b23a40;
+  color: #f2cf8a;
+}
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .eyebrow,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .hero-label,
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .ai-eyebrow {
+  color: #f2cf8a;
+}
+
+/* ───────────── Light: Mumbai day ───────────── */
+:root[data-skin="ethglobal"][data-theme="light"] {
+  --bg: #fbf1de;
+  --panel: #fff8ec;
+  --border: #9a34121f;
+  --muted: #7a5b44;
+  --text: #2a1712;
+  --blue: #c2410c;
+  --green: #0f766e;
+  --red: #b42335;
+  --eg-veil: #fbf1dee8;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .panel,
+:root[data-skin="ethglobal"][data-theme="light"] .market-card,
+:root[data-skin="ethglobal"][data-theme="light"] .floating-market,
+:root[data-skin="ethglobal"][data-theme="light"] .dialog {
+  background: linear-gradient(140deg, #fffaf1eb, #fdf2e0eb);
+  border-color: #c2410c26;
+  box-shadow: 0 10px 24px #7c2d1210;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .market-card:hover,
+:root[data-skin="ethglobal"][data-theme="light"] .floating-market:hover {
+  background: #fffaf2;
+  border-color: #c2410c66;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .app-sidebar,
+:root[data-skin="ethglobal"][data-theme="light"] .app-header {
+  background: #fdf4e3e0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-color: #c2410c1f;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .primary {
+  background: linear-gradient(135deg, #d9481c, #b8282f);
+  border-color: #e8643a;
+  color: #fff6e8;
+  box-shadow: 0 4px 16px #b8282f2e;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .primary:hover {
+  background: linear-gradient(135deg, #e5562a, #c4323a);
+}
+:root[data-skin="ethglobal"][data-theme="light"] .secondary {
+  border-color: #c2410c33;
+  background: #c2410c08;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .secondary:hover {
+  background: #c2410c14;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .hero h1 > span,
+:root[data-skin="ethglobal"][data-theme="light"] .ai-gradient-text {
+  background: linear-gradient(90deg, #c2410c, #b8282f 55%, #0f766e);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .app-sidebar nav > a:hover,
+:root[data-skin="ethglobal"][data-theme="light"] .app-sidebar nav > a.active {
+  background: #c2410c12;
+  border-color: #c2410c2e;
+  color: #7c2d12;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .demo-badge {
+  border-color: #c2410c33;
+  color: #8a3a14;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .eyebrow,
+:root[data-skin="ethglobal"][data-theme="light"] .hero-label,
+:root[data-skin="ethglobal"][data-theme="light"] .ai-eyebrow {
+  color: #9a3412;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root[data-skin="ethglobal"] .panel,
+  :root[data-skin="ethglobal"] .market-card,
+  :root[data-skin="ethglobal"] .floating-market,
+  :root[data-skin="ethglobal"] .dialog {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--panel);
+  }
+}
+
+:root[data-skin="ethglobal"]:not([data-theme="light"]) .ai-orbit {
+  border-color: #f4b23a24;
+}
+:root[data-skin="ethglobal"][data-theme="light"] .ai-orbit {
+  border-color: #c2410c1f;
+}

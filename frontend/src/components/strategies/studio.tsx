@@ -164,7 +164,9 @@ export function StrategyStudio({
       role: "ai",
       text: initial
         ? `Loaded “${initial.name}”. Tell me what to change, for example “make it more conservative” or “add 10% AAPL”.`
-        : "Hi! I'm Atlas AI. Describe the strategy you want: markets, assets or sectors, risk, rebalance cadence, stop loss, or signals like RSI, dips and trends. I'll build it on the right.",
+        : autoPrompt
+          ? "Got it. I'm building your strategy now — watch it take shape on the right."
+          : "Hi! I'm Atlas AI. Describe the strategy you want: markets, assets or sectors, risk, rebalance cadence, stop loss, or signals like RSI, dips and trends. I'll build it on the right.",
     },
     ...(initial
       ? [{ id: 1, role: "user" as const, text: initial.prompt }]
@@ -251,11 +253,19 @@ export function StrategyStudio({
   const total = spec?.universe.reduce((t, a) => t + a.weight, 0) ?? 0;
 
   // A prompt handed over from the home page is sent once, as if typed.
+  // Arriving with a prompt (e.g. from the home page): build it straight away, no suggestions.
+  const autoStart = !!autoPrompt && !initial;
   const autoSent = useRef(false);
+  const suggestions =
+    autoStart || thinking || plan ? [] : turns.length ? REFINES : STARTERS;
   useEffect(() => {
-    if (!autoPrompt || initial || autoSent.current) return;
-    autoSent.current = true;
-    const t = setTimeout(() => void send(autoPrompt), 250);
+    if (!autoStart || autoSent.current) return;
+    // Marked inside the timer, so a dev-mode effect re-run (Strict Mode) still sends once.
+    const t = setTimeout(() => {
+      if (autoSent.current) return;
+      autoSent.current = true;
+      void send(autoPrompt!);
+    }, 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrompt]);
@@ -543,14 +553,16 @@ export function StrategyStudio({
             </div>
           )}
         </div>
-        <div className="studio-suggest">
-          {(plan ? [] : turns.length ? REFINES : STARTERS).map((s) => (
-            <button key={s} disabled={thinking} onClick={() => void send(s)}>
-              {turns.length ? <Wand2 size={12} /> : null}
-              {s}
-            </button>
-          ))}
-        </div>
+        {suggestions.length > 0 && (
+          <div className="studio-suggest">
+            {suggestions.map((s) => (
+              <button key={s} disabled={thinking} onClick={() => void send(s)}>
+                {turns.length ? <Wand2 size={12} /> : null}
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
         <form
           className="studio-composer"
           onSubmit={(e) => {
