@@ -90,6 +90,7 @@ export function evaluateExitConditions(
   entryPriceScaled: bigint,
   currentScaled: bigint,
   now: number,
+  entryAt?: number,
 ): ExitEvaluation {
   const pnl = pnlBps(entryPriceScaled, currentScaled);
   const hits: { type: ExitCondition["type"]; reason: string }[] = [];
@@ -124,7 +125,12 @@ export function evaluateExitConditions(
           hits.push({ type: e.type, reason: `Price fell to ${e.priceUSDT}` });
         break;
       case "TIME_EXIT":
-        if (now >= e.timestamp)
+        if (
+          now >=
+          (e.holdSeconds !== undefined && entryAt !== undefined
+            ? entryAt + e.holdSeconds
+            : e.timestamp)
+        )
           hits.push({ type: e.type, reason: "Time exit reached" });
         break;
     }

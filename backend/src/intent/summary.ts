@@ -37,7 +37,9 @@ export function describeExit(c: ExitCondition): string {
     case "PRICE_BELOW":
       return `the price falls to ${usd(c.priceUSDT)}`;
     case "TIME_EXIT":
-      return `${when(c.timestamp)}`;
+      return c.holdSeconds
+        ? `${c.holdSeconds} seconds after the buy fills`
+        : `${when(c.timestamp)}`;
   }
 }
 export const describeAllocation = (

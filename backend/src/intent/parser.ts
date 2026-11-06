@@ -46,7 +46,7 @@ RULES (non-negotiable):
 - If a required detail is missing or vague (e.g. "when it looks good"), output {"status":"CLARIFICATION_NEEDED","question":"...","field":"entry|allocation|asset|side|exit"}. Do not guess.
 - Current unix time: ${now}. Use it only to turn relative times into absolute unix seconds.
 - Atlas markets are open 24/7. "Now", "immediately" or no entry timing means [{"type":"MARKET_OPEN"}] (executes right away).
-- Relative entry like "after 30 seconds" or "in 5 minutes" is AFTER_TIME = now + delay. A hold like "sell 10 seconds after buying" is TIME_EXIT = entry time + hold.
+- Relative entry like "after 30 seconds" or "in 5 minutes" is AFTER_TIME = now + delay. A hold like "sell 10 seconds after buying" is TIME_EXIT with holdSeconds = the hold in seconds and timestamp = entry time + hold.
 
 SCHEMA:
 {"status":"OK","intent":{
@@ -54,7 +54,7 @@ SCHEMA:
  "side":"BUY"|"SELL",
  "allocation":{"type":"FIXED_USDT"|"PORTFOLIO_PERCENT"|"VAULT_PERCENT","value":"decimal string"},
  "entryConditions":[{"type":"MARKET_OPEN"}|{"type":"PRICE_BELOW","priceUSDT":"x"}|{"type":"PRICE_ABOVE","priceUSDT":"x"}|{"type":"AT_TIME","timestamp":n}|{"type":"AFTER_TIME","timestamp":n}|{"type":"BEFORE_TIME","timestamp":n}],
- "exitConditions":[{"type":"TAKE_PROFIT_BPS","value":n}|{"type":"STOP_LOSS_BPS","value":n}|{"type":"PRICE_ABOVE","priceUSDT":"x"}|{"type":"PRICE_BELOW","priceUSDT":"x"}|{"type":"TIME_EXIT","timestamp":n}],
+ "exitConditions":[{"type":"TAKE_PROFIT_BPS","value":n}|{"type":"STOP_LOSS_BPS","value":n}|{"type":"PRICE_ABOVE","priceUSDT":"x"}|{"type":"PRICE_BELOW","priceUSDT":"x"}|{"type":"TIME_EXIT","timestamp":n,"holdSeconds":n}],
  "constraints":{"maxSlippageBps":n,"maxExecutionPriceUSDT":"x","minExecutionPriceUSDT":"x","validAfter":n,"validUntil":n}}}
 Percent -> basis points: 1% = 100 bps. Omit constraint keys the user did not state.`;
 }
@@ -238,7 +238,7 @@ export function parseWithRules(prompt: string, now: number): AiResponse {
       text,
     );
   const usdAlloc =
-    /(?:\$\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(k)?\s*(?:usdt|usd|dollars))/i.exec(
+    /(?:\$\s*([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s*(k)?\s*(?:a?usdt|a?usdc|usd|dollars))/i.exec(
       text,
     );
   const rawFixed = usdAlloc
@@ -360,7 +360,11 @@ export function parseWithRules(prompt: string, now: number): AiResponse {
   // Exits
   const exits: ExitCondition[] = [];
   if (holdS !== undefined && holdS > 0)
-    exits.push({ type: "TIME_EXIT", timestamp: entryAt + holdS });
+    exits.push({
+      type: "TIME_EXIT",
+      timestamp: entryAt + holdS,
+      holdSeconds: holdS,
+    });
   const bps = (v: string) => Number(parseDecimal(v, 2));
   const tp =
     /(\d+(?:\.\d+)?)\s*%\s*(?:profit|gain|return)|(?:take[- ]profit|profit|gain)[^\d%.]{0,25}?(\d+(?:\.\d+)?)\s*%|\+\s*(\d+(?:\.\d+)?)\s*%/i.exec(
@@ -506,6 +510,38 @@ export async function parseIntent(
   };
 }
 
+/**
+ * A relative hold ("sell 15 seconds after buying") must run from the real entry fill, not from
+ * a clock time fixed at parse, or it expires while the user reviews and signs. The model emits
+ * absolute timestamps, so convert them here unless the user gave an explicit date.
+ */
+function anchorHolds(
+  d: IntentDraft,
+  prompt: string,
+  now: number,
+  parser: "ai" | "rules" | "manual",
+): ExitCondition[] {
+  if (
+    parser === "manual" ||
+    d.side !== "BUY" ||
+    /\d{4}-\d{2}-\d{2}/.test(prompt)
+  )
+    return d.exitConditions;
+  const entryAt = Math.max(
+    now,
+    ...d.entryConditions.flatMap((e) =>
+      e.type === "AFTER_TIME" || e.type === "AT_TIME" ? [e.timestamp] : [],
+    ),
+  );
+  return d.exitConditions.map((e) =>
+    e.type === "TIME_EXIT" &&
+    e.holdSeconds === undefined &&
+    e.timestamp > entryAt
+      ? { ...e, holdSeconds: e.timestamp - entryAt }
+      : e,
+  );
+}
+
 /** Resolve against the Atlas catalog and fill (visibly) defaulted fields. Unknown stocks are rejected, not guessed. */
 export function draftToIntent(
   d: IntentDraft,
@@ -547,7 +583,7 @@ export function draftToIntent(
     side: d.side,
     allocation: d.allocation,
     entryConditions: d.entryConditions,
-    exitConditions: d.exitConditions,
+    exitConditions: anchorHolds(d, prompt, now, parser),
     constraints,
   });
   return {

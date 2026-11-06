@@ -346,6 +346,18 @@ export function createApp(options: AppOptions) {
       .set("Cache-Control", "no-store")
       .json((await store.status?.()) ?? { driver: "local", ready: true });
   });
+  app.get("/api/storage/arkiv", authenticated, async (_req, res) => {
+    const wallet = res.locals.wallet as WalletSession;
+    res.set("Cache-Control", "no-store");
+    res.json(
+      (await (store as ProfileRepository).activity?.(wallet.address)) ?? {
+        driver: "local",
+        ready: true,
+        message:
+          "Profiles are stored locally. Set PROFILE_STORE=arkiv to store them on Arkiv.",
+      },
+    );
+  });
   app.post("/api/profile/ens", authenticated, async (req, res) => {
     const wallet = res.locals.wallet as WalletSession;
     if (wallet.demo)

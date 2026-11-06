@@ -173,6 +173,7 @@ export interface IntentView {
     quantity: string;
     slippage_bps: number;
     fee_usdt: string;
+    notional_usdt?: string;
     tx_hash: string | null;
   }[];
   error: { code: string; message: string } | null;
@@ -531,3 +532,18 @@ export const TIMELINE: { type: string; label: string }[] = [
   { type: "POSITION_CLOSED", label: "Position closed" },
 ];
 export const DEMO_UI = process.env.NEXT_PUBLIC_INTENT_DEMO_MODE === "true";
+
+/**
+ * Execution rows come straight from the database as fixed-point integers: quantity has 18
+ * decimals and USDT amounts have 6. Prices are already decimal strings.
+ */
+export const fromUnits = (raw: string | undefined | null, decimals: number) =>
+  raw ? Number(raw) / 10 ** decimals : 0;
+export const execQty = (e: IntentView["executions"][number]) =>
+  fromUnits(e.quantity, 18);
+export const execFee = (e: IntentView["executions"][number]) =>
+  fromUnits(e.fee_usdt, 6);
+export const execValue = (e: IntentView["executions"][number]) =>
+  e.notional_usdt !== undefined
+    ? fromUnits(e.notional_usdt, 6)
+    : execQty(e) * Number(e.price_usdt);
