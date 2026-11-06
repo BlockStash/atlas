@@ -7,6 +7,7 @@ import { defineSchema, str, bytes } from "@arkiv-network/sdk/schema";
 import { and, eq } from "@arkiv-network/sdk/query";
 import { hexToBytes, type Hex } from "viem";
 import { arkivConnection } from "./arkiv-connection.js";
+import { arkivGasGuard, ArkivGasGuardError } from "./arkiv-gas.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { normalizeProfile } from "./profile-migrations.js";
 import { readFile } from "node:fs/promises";
@@ -31,11 +32,14 @@ export interface ArkivStoreOptions {
   namespace: string;
   claimsFile: string;
   legacyFile?: string;
+  /** Maximum fee (wei) one profile write may cost. Defaults to 0.02 tGLM. */
+  maxFeeWei?: bigint;
 }
 export class ArkivProfileStore implements ProfileRepository {
   private publicClient;
   private walletClient;
   private crypto;
+  private gas;
   private claims: IdentityClaims;
   private pending: Promise<void> = Promise.resolve();
   private chainChecked = false;
@@ -63,6 +67,13 @@ export class ArkivProfileStore implements ProfileRepository {
     this.walletClient = createWalletClient({
       account,
       ...connection,
+    });
+    this.gas = arkivGasGuard({
+      chain: connection.chain,
+      transport: connection.transport,
+      account,
+      publicClient: this.publicClient,
+      maxFeeWei: options.maxFeeWei,
     });
     this.crypto = profileCrypto(options.encryptionKey, options.namespace);
     this.claims = new IdentityClaims(options.claimsFile);
@@ -194,29 +205,39 @@ export class ArkivProfileStore implements ProfileRepository {
             ),
           }
         : {};
+      // Gas is bounded by the Rabdi guard (floor, 2× estimate, half block limit, fee cap).
+      // Never resent automatically: a failed or uncertain write surfaces as an error.
       if (row)
-        await this.walletClient.executeBatch({
-          patches: [
+        await this.gas.send(2, this.walletClient, (client, txParams) =>
+          client.executeBatch(
             {
-              schema: Profiles,
-              entityKey: row.$key,
-              set: { payload, ...identity },
+              patches: [
+                {
+                  schema: Profiles,
+                  entityKey: row.$key,
+                  set: { payload, ...identity },
+                },
+              ],
+              extensions: [
+                { entityKey: row.$key, expiration: ExpirationTime.max() },
+              ],
             },
-          ],
-          extensions: [
-            { entityKey: row.$key, expiration: ExpirationTime.fromDays(30) },
-          ],
-        });
+            txParams,
+          ),
+        );
       else
-        await this.walletClient.createEntity(
-          Profiles,
-          {
-            namespace: this.options.namespace,
-            wallet_tag: this.crypto.walletTag(address),
-            payload,
-            ...identity,
-          },
-          { expiration: ExpirationTime.fromDays(30) },
+        await this.gas.send(1, this.walletClient, (client, txParams) =>
+          client.createEntity(
+            Profiles,
+            {
+              namespace: this.options.namespace,
+              wallet_tag: this.crypto.walletTag(address),
+              payload,
+              ...identity,
+            },
+            { expiration: ExpirationTime.max() },
+            txParams,
+          ),
         );
       result = next;
     });
@@ -233,8 +254,13 @@ export class ArkivProfileStore implements ProfileRepository {
     console.error(
       "[arkiv] profile operation failed:",
       // SDK messages can contain the keyed RPC URL. Keep access keys and
-      // encrypted request payloads out of the application log.
-      error instanceof Error ? error.name : "Unknown error",
+      // encrypted request payloads out of the application log. Gas guard
+      // messages are fixed strings and safe to log.
+      error instanceof ArkivGasGuardError
+        ? `${error.name}: ${error.message}`
+        : error instanceof Error
+          ? error.name
+          : "Unknown error",
     );
     return new VerificationError(
       "ARKIV_UNAVAILABLE",

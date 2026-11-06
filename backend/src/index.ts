@@ -16,6 +16,9 @@ if (process.env.PROFILE_STORE === "arkiv") {
       signerAddress: process.env.ARKIV_SIGNER_ADDRESS,
       encryptionKey: process.env.ARKIV_ENCRYPTION_KEY || "",
       namespace: process.env.ARKIV_NAMESPACE || "atlas-poc",
+      maxFeeWei: process.env.ARKIV_MAX_TX_FEE_WEI
+        ? BigInt(process.env.ARKIV_MAX_TX_FEE_WEI)
+        : undefined,
       claimsFile: resolve(
         process.env.IDENTITY_CLAIMS_FILE || "data/world-id-claims.sqlite",
       ),

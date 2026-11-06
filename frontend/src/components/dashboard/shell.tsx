@@ -15,6 +15,8 @@ import {
   Wallet,
   Landmark,
   ChartCandlestick,
+  Compass,
+  Layers,
   X,
 } from "lucide-react";
 import {
@@ -31,7 +33,22 @@ const links = [
   { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/vault", label: "Atlas Vault", Icon: Landmark },
   { href: "/trade", label: "Synthetic stocks", Icon: ChartCandlestick },
+  { href: "/strategies", label: "Explore strategies", Icon: Compass },
+  { href: "/strategies/mine", label: "My strategies", Icon: Layers },
 ];
+/** Personal strategy routes highlight "My strategies"; other /strategies/* pages highlight Explore. */
+const isActive = (href: string, path: string) => {
+  if (href === "/strategies/mine")
+    return path === href || path === "/strategies/new";
+  if (href === "/strategies")
+    return (
+      path === href ||
+      (path.startsWith("/strategies/") &&
+        path !== "/strategies/mine" &&
+        path !== "/strategies/new")
+    );
+  return path === href;
+};
 export function DashboardShell({
   children,
   search,
@@ -77,12 +94,12 @@ export function DashboardShell({
             <Link
               key={href}
               href={href}
-              className={path === href ? "active" : ""}
+              className={isActive(href, path) ? "active" : ""}
               onClick={() => setMenu(false)}
             >
               <Icon size={18} />
               {label}
-              {path === href && <span className="active-nav-dot" />}
+              {isActive(href, path) && <span className="active-nav-dot" />}
             </Link>
           ))}
         </nav>
