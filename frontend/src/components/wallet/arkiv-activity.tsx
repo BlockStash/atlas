@@ -50,7 +50,23 @@ const EXPLORER = (
 ).replace(/\/$/, "");
 
 const when = (iso: string | null | undefined) =>
-  iso ? new Date(iso).toLocaleString() : "—";
+  iso
+    ? new Date(iso).toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "—";
+const day = (iso: string | null | undefined) =>
+  iso
+    ? new Date(iso).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
 const short = (s: string) => `${s.slice(0, 10)}…${s.slice(-6)}`;
 
 /** Everything Atlas stores for this wallet in the Arkiv database, pulled live from the network. */
@@ -78,18 +94,14 @@ export function ArkivActivity() {
   if (!wallet) return null;
 
   const e = data?.entity;
-  // Share of the entity's lifetime already used, from creation to expiry.
-  const used =
+  // Share of the entity's lifetime still left, from the server's days-left count.
+  const span =
     e?.createdAt && e.expiresAt
-      ? Math.min(
-          100,
-          Math.max(
-            0,
-            ((Date.now() - Date.parse(e.createdAt)) /
-              (Date.parse(e.expiresAt) - Date.parse(e.createdAt))) *
-              100,
-          ),
-        )
+      ? (Date.parse(e.expiresAt) - Date.parse(e.createdAt)) / 86_400_000
+      : 0;
+  const left =
+    e && e.daysLeft !== null && span > 0
+      ? Math.min(100, Math.max(0, (e.daysLeft / span) * 100))
       : 0;
 
   return (
@@ -97,7 +109,14 @@ export function ArkivActivity() {
       <div className="ens-title">
         <Database size={22} />
         <div>
-          <h3>Arkiv activity</h3>
+          <h3>
+            Arkiv activity
+            {data && (
+              <span className={`arkiv-status ${e ? "ok" : ""}`}>
+                <i /> {e ? "Synced" : data.ready ? "Empty" : "Unavailable"}
+              </span>
+            )}
+          </h3>
           <p>Everything Atlas stores for you on the Arkiv database.</p>
         </div>
         <a
@@ -110,7 +129,7 @@ export function ArkivActivity() {
           target="_blank"
           rel="noreferrer"
         >
-          <ExternalLink size={14} /> View on Arkiv testnet
+          <ExternalLink size={14} /> Explorer
         </a>
         <button
           className="btn secondary small"
@@ -177,72 +196,91 @@ export function ArkivActivity() {
           </div>
 
           <div className="arkiv-life">
-            <div>
+            <div className="arkiv-life-head">
               <span>Storage lifetime</span>
               <b>{e.daysLeft !== null ? `${e.daysLeft} days left` : "—"}</b>
             </div>
             <div
               className="arkiv-bar"
               role="progressbar"
-              aria-valuenow={Math.round(used)}
+              aria-label="Storage lifetime remaining"
+              aria-valuenow={Math.round(left)}
               aria-valuemin={0}
               aria-valuemax={100}
             >
-              <i style={{ width: `${used}%` }} />
+              <i style={{ width: `${left}%` }} />
             </div>
-            <small>
-              Expires {when(e.expiresAt)} (estimated). Every profile update
-              extends it.
-            </small>
+            <div className="arkiv-life-foot">
+              <span>Created {day(e.createdAt)}</span>
+              <span>Expires {day(e.expiresAt)} · extended on every update</span>
+            </div>
           </div>
 
-          <div className="arkiv-entity">
+          <dl className="arkiv-entity">
             <div>
-              <small>Entity key</small>
-              <code>{short(e.key)}</code>
-              <button
-                className="text-button"
-                aria-label="Copy entity key"
-                onClick={() =>
-                  navigator.clipboard
-                    .writeText(e.key)
-                    .then(() => toast("Entity key copied."))
-                    .catch(() => toast("Could not copy."))
-                }
-              >
-                <Copy size={12} />
-              </button>
+              <dt>Entity key</dt>
+              <dd>
+                <code title={e.key}>{short(e.key)}</code>
+                <button
+                  className="arkiv-copy"
+                  aria-label="Copy entity key"
+                  title="Copy entity key"
+                  onClick={() =>
+                    navigator.clipboard
+                      .writeText(e.key)
+                      .then(() => toast("Entity key copied."))
+                      .catch(() => toast("Could not copy."))
+                  }
+                >
+                  <Copy size={13} />
+                </button>
+              </dd>
             </div>
             <div>
-              <small>Schema</small>
-              <code>{e.schema}</code>
+              <dt>Schema</dt>
+              <dd>
+                <code>{e.schema}</code>
+              </dd>
             </div>
             <div>
-              <small>Namespace</small>
-              <code>{e.namespace}</code>
+              <dt>Namespace</dt>
+              <dd>
+                <code>{e.namespace}</code>
+              </dd>
             </div>
             <div>
-              <small>Written by</small>
-              <a
-                className="arkiv-link"
-                href={`${EXPLORER}/address/${e.creator}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {short(e.creator)} <ExternalLink size={12} />
-              </a>
+              <dt>Written by</dt>
+              <dd>
+                <a
+                  className="arkiv-link"
+                  href={`${EXPLORER}/address/${e.creator}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={e.creator}
+                >
+                  <code>{short(e.creator)}</code> <ExternalLink size={12} />
+                </a>
+              </dd>
             </div>
+          </dl>
+
+          <div className="arkiv-notes">
+            <p>
+              <Lock size={14} />
+              <span>
+                <strong>AES-256 encrypted</strong> before it leaves Atlas. Only
+                your wallet and Atlas can read it; the view below is decrypted
+                for you, with secrets left out.
+              </span>
+            </p>
+            <p>
+              <ExternalLink size={14} />
+              <span>
+                <strong>Written by the Atlas signer.</strong> Open a block or
+                the signer in the explorer to see the transactions on Arkiv.
+              </span>
+            </p>
           </div>
-          <p className="arkiv-note">
-            <ExternalLink size={14} /> Your writes are sent by the Atlas signer.
-            Open a block above, or the signer, in the explorer to see the
-            transactions on the Arkiv chain.
-          </p>
-          <p className="arkiv-note">
-            <Lock size={14} /> The record is AES-256 encrypted before it leaves
-            Atlas. Only your wallet and Atlas can read it. The view below is
-            decrypted for you, with secrets left out.
-          </p>
 
           <details className="activity-drop">
             <summary>

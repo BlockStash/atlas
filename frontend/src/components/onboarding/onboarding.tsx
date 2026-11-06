@@ -119,7 +119,7 @@ export function Onboarding() {
         "PUT",
       );
       update({ onboardingComplete: true });
-      router.push("/dashboard");
+      router.push("/home");
       toast("Welcome to Atlas. Your global portfolio is ready.");
     } catch (e) {
       toast(

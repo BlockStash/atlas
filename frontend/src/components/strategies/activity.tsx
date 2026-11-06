@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -116,33 +115,86 @@ export function StatusCard({ items }: { items: IntentView[] | null }) {
   );
 }
 
-/** Live status and trades of every deployment of this strategy. */
-export function DeploymentsPanel({ items }: { items: IntentView[] | null }) {
-  if (!items?.length) return null;
+const shortWhen = (sec: number) =>
+  new Date(sec * 1000).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+function Deployment({ v, compact }: { v: IntentView; compact?: boolean }) {
+  const tone = DONE.includes(v.status)
+    ? "done"
+    : BAD.includes(v.status)
+      ? "bad"
+      : "live";
   return (
-    <section className="panel strategy-deployments">
-      <h2>Deployments</h2>
-      {items.map((v) => (
-        <div key={v.id} className="strategy-deployment">
-          <header>
-            <strong>
-              {v.intent.asset.symbol} · {v.intent.side}
-            </strong>
-            <span className={`intent-status st-${v.status.toLowerCase()}`}>
-              {label(v.status)}
-            </span>
-            <time>{new Date(v.createdAt * 1000).toLocaleString()}</time>
-          </header>
-          <p className="intent-summary-line">{v.summary}</p>
+    <article
+      className={`strategy-deployment tone-${tone} ${compact ? "compact" : ""}`}
+    >
+      <header>
+        <strong>
+          {v.intent.asset.symbol}
+          <span className={`deploy-side ${v.intent.side.toLowerCase()}`}>
+            {v.intent.side}
+          </span>
+        </strong>
+        <span className={`intent-status st-${v.status.toLowerCase()}`}>
+          {label(v.status)}
+        </span>
+        <time dateTime={new Date(v.createdAt * 1000).toISOString()}>
+          {shortWhen(v.createdAt)}
+        </time>
+      </header>
+      {!compact && (
+        <>
+          <p className="intent-summary-line" title={v.summary}>
+            {v.summary}
+          </p>
           {v.error && !DONE.includes(v.status) && (
             <p className="intent-note">{v.error.message}</p>
           )}
           <TradeResult v={v} />
+        </>
+      )}
+    </article>
+  );
+}
+
+/**
+ * Live status and trades of every deployment of this strategy. The newest run is shown in full;
+ * earlier runs that ended without trading (cancelled, failed, expired) stay as one-line entries,
+ * and anything beyond the first few is folded away.
+ */
+export function DeploymentsPanel({ items }: { items: IntentView[] | null }) {
+  const [all, setAll] = useState(false);
+  if (!items?.length) return null;
+  const [latest, ...rest] = items;
+  const shown = all ? rest : rest.slice(0, 3);
+  return (
+    <section className="panel strategy-deployments">
+      <div className="strategy-deployments-head">
+        <h2>Deployments</h2>
+        <span className="muted">
+          {items.length} run{items.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <Deployment v={latest!} />
+      {rest.length > 0 && (
+        <div className="strategy-deployments-earlier">
+          <span className="eyebrow">Earlier runs</span>
+          {shown.map((v) => (
+            <Deployment key={v.id} v={v} compact={BAD.includes(v.status)} />
+          ))}
+          {rest.length > 3 && (
+            <button className="text-button" onClick={() => setAll(!all)}>
+              <ChevronDown size={14} className={all ? "flip" : ""} />
+              {all ? "Show fewer" : `Show ${rest.length - 3} more`}
+            </button>
+          )}
         </div>
-      ))}
-      <Link className="text-button" href="/intent">
-        Open in Atlas AI trades ↗
-      </Link>
+      )}
     </section>
   );
 }

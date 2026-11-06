@@ -4,10 +4,8 @@ import Link from "next/link";
 import {
   AtSign,
   Compass,
-  FlaskConical,
   GitFork,
   Layers,
-  Rocket,
   RotateCcw,
   Wand2,
 } from "lucide-react";
@@ -21,7 +19,7 @@ import {
   positionPerformance,
   usd,
 } from "@/lib/strategies";
-import { Ret, StrategyCard, useStrategyStore } from "./ui";
+import { StrategyCard, useStrategyStore } from "./ui";
 import {
   StrategyTable,
   ViewToggle,
@@ -29,7 +27,6 @@ import {
   type SortState,
   type ViewMode,
 } from "./table";
-import { StrategyIconBadge } from "./icon";
 import { EnsBatchPublish } from "./ens-subname";
 
 type Filter = "all" | "public" | "private" | "forks";
@@ -151,97 +148,6 @@ export function MyStrategiesPage() {
             note="Paid to original creators when you deployed"
           />
         </div>
-
-        <section className="panel strategy-positions">
-          <div className="strategy-perf-head">
-            <h2>Running now</h2>
-            <span className="muted">
-              {positions.length} position{positions.length === 1 ? "" : "s"}
-            </span>
-          </div>
-          {positions.length ? (
-            <div className="strategy-table-wrap">
-              <table className="strategy-table positions-table">
-                <thead>
-                  <tr>
-                    <th>Strategy</th>
-                    <th>Mode</th>
-                    <th>Started</th>
-                    <th className="num">Capital</th>
-                    <th className="num">Current value</th>
-                    <th className="num">Return</th>
-                    <th className="num">Creator fee</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map(({ p, s, perf }) => (
-                    <tr key={p.id}>
-                      <td>
-                        <div className="position-name">
-                          {s && <StrategyIconBadge icon={s.icon} size={40} />}
-                          <div>
-                            <Link href={`/strategies/${p.strategyId}`}>
-                              {s?.name ?? "Removed strategy"}
-                            </Link>
-                            {s?.ens && <small>{s.ens}</small>}
-                          </div>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`strategy-mode ${p.mode}`}>
-                          {p.mode === "live" ? "Live" : "Paper"}
-                        </span>
-                      </td>
-                      <td>
-                        {new Date(p.startedAt).toLocaleDateString(undefined, {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </td>
-                      <td className="num">
-                        {usd(p.capital)} <small>aUSDT</small>
-                      </td>
-                      <td className="num">
-                        {usd(perf?.value ?? p.capital)} <small>aUSDT</small>
-                      </td>
-                      <td className="num">
-                        <Ret v={perf?.totalReturn ?? 0} />
-                      </td>
-                      <td className="num">
-                        {p.creatorFee ? (
-                          <>
-                            {usd(p.creatorFee)} <small>aUSDT</small>
-                          </>
-                        ) : (
-                          <span className="muted">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="strategy-steps">
-              <div>
-                <Wand2 size={18} />
-                <strong>1. Describe</strong>
-                <span>Tell Atlas AI your idea in plain English.</span>
-              </div>
-              <div>
-                <FlaskConical size={18} />
-                <strong>2. Test</strong>
-                <span>Backtest a year, then paper trade it forward.</span>
-              </div>
-              <div>
-                <Rocket size={18} />
-                <strong>3. Deploy</strong>
-                <span>Put real aUSDT to work from your vault.</span>
-              </div>
-            </div>
-          )}
-        </section>
 
         <div className="strategy-toolbar">
           <h2 className="strategy-section-title">Your strategies</h2>

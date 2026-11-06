@@ -648,7 +648,8 @@ export function createApp(options: AppOptions) {
   app.use(
     "/api/intents",
     authenticated,
-    limit,
+    // Status polling (GET) is read-only and frequent; only writes and simulations are rate limited.
+    (req, res, next) => (req.method === "GET" ? next() : limit(req, res, next)),
     (_req, res, next) => {
       engine ??= createIntentEngine({
         production: options.production,

@@ -111,7 +111,7 @@ export function WalletModal() {
                 onClick={() => {
                   setModal(false);
                   router.push(
-                    state.onboardingComplete ? "/dashboard" : "/onboarding",
+                    state.onboardingComplete ? "/home" : "/onboarding",
                   );
                 }}
               >

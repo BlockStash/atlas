@@ -103,7 +103,7 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
     if (!ready || path.startsWith("/admin")) return;
     if (path !== "/" && !wallet) router.replace("/");
     if (path === "/" && wallet)
-      router.replace(state.onboardingComplete ? "/dashboard" : "/onboarding");
+      router.replace(state.onboardingComplete ? "/home" : "/onboarding");
     if (
       wallet &&
       path !== "/" &&

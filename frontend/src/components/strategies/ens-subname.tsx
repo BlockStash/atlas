@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   AtSign,
   BadgeCheck,
+  Copy,
   Link2,
   Loader2,
   RefreshCw,
@@ -14,7 +15,7 @@ import { useAtlas } from "@/components/atlas/provider";
 import { isEns, strategyHandle, type Strategy } from "@/lib/strategies";
 import { transactionMessage } from "@/lib/transactions";
 import type { Hash } from "viem";
-import { EnsHandle, useStrategyStore } from "./ui";
+import { useStrategyStore } from "./ui";
 
 type Phase =
   | { kind: "idle" }
@@ -27,6 +28,8 @@ type Status = import("@/lib/ens-subnames").ParentStatus;
 
 const ensLib = () => import("@/lib/ens-subnames");
 const txUrl = (hash: string) => `https://sepolia.etherscan.io/tx/${hash}`;
+const ensAppHref = (name: string) =>
+  `https://sepolia.app.ens.domains/${encodeURIComponent(name)}`;
 
 /**
  * Publishes ENSv2 subnames for the creator's strategies: checks the root name's resolver, sets up
@@ -132,7 +135,7 @@ function PhaseLine({ phase }: { phase: Phase }) {
           ? `${phase.what} — confirm in your wallet`
           : `${phase.what} — waiting for Sepolia`;
   return (
-    <span className="ens-subname-phase">
+    <span className="ens-note phase">
       <Loader2 size={13} className="spin" /> {text}
       {phase.kind === "pending" && (
         <a href={txUrl(phase.hash)} target="_blank" rel="noreferrer">
@@ -146,14 +149,36 @@ function PhaseLine({ phase }: { phase: Phase }) {
 function SetupNote({ status }: { status: Status | null }) {
   if (!status || status.kind === "ready") return null;
   if (status.kind === "unavailable")
-    return <span className="ens-subname-warn">{status.reason}</span>;
+    return <span className="ens-note warn">{status.reason}</span>;
   return (
-    <span className="ens-subname-warn">
+    <span className="ens-note warn">
       {status.name} isn&apos;t on an ENSv2 Permissioned Resolver yet. Publishing
       first deploys one for you and points {status.name} at it (keeping its ETH
       address). Other records on the old resolver, like an avatar, aren&apos;t
       copied.
     </span>
+  );
+}
+
+const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
+
+function CopyValue({ value, label }: { value: string; label: string }) {
+  const { toast } = useAtlas();
+  return (
+    <button
+      type="button"
+      className="ens-copy"
+      title={`Copy ${label}`}
+      aria-label={`Copy ${label}`}
+      onClick={() =>
+        navigator.clipboard.writeText(value).then(
+          () => toast(`${label} copied.`),
+          () => toast("Could not copy."),
+        )
+      }
+    >
+      <Copy size={12} />
+    </button>
   );
 }
 
@@ -171,100 +196,135 @@ export function StrategyEnsPanel({
   const busy = pub.phase.kind !== "idle";
   // A strategy saved before ENS was linked gets its handle when it's published.
   const handle = s.ens ?? strategyHandle(s.name, pub.root);
+  const linked = !!pub.root || live;
+  const record = s.ensRecord;
 
   return (
-    <section className={`panel strategy-ens-panel ${live ? "live" : ""}`}>
-      <div className="strategy-ens-panel-head">
+    <section
+      className={`panel protocol-explainer strategy-ens-panel ${live ? "live" : ""}`}
+    >
+      <header className="strategy-ens-head">
         <span className="eyebrow">
-          <AtSign size={13} /> ENS SUBNAME
+          <AtSign size={13} /> ENS subname
         </span>
-        {live && (
-          <span className="ens-subname-ok">
-            <BadgeCheck size={13} /> Live on Sepolia
+        {live ? (
+          <span className="ens-status live">
+            <i /> Live
           </span>
-        )}
-      </div>
+        ) : linked ? (
+          <span className="ens-status">
+            <i /> Not published
+          </span>
+        ) : null}
+      </header>
 
-      {!pub.root && owner && !live ? (
+      {!linked ? (
         // No ENS linked: leave the slot visibly empty and offer to link one.
-        <div className="strategy-ens-empty">
-          <span className="ens-subname-slot">
-            <code>strategy-name</code>.<em>your-name</em>.eth
-          </span>
-          <p className="muted">
-            Link an ENS name and every strategy gets its own subname that
+        <>
+          <div className="ens-sub-card empty">
+            <span className="ens-sub-name">
+              {strategyHandle(s.name, "your-name.eth") ??
+                "strategy.your-name.eth"}
+            </span>
+            <span className="ens-sub-meta">No ENS name linked</span>
+          </div>
+          <p className="strategy-ens-copy">
+            Link an ENS name and each strategy gets its own subname that
             resolves to your wallet.
           </p>
-          <Link className="btn secondary small" href="/wallet">
-            <Link2 size={14} /> Link ENS
+          <Link className="btn secondary small ens-wide" href="/wallet">
+            <Link2 size={14} /> Link ENS name
           </Link>
-        </div>
+        </>
       ) : (
         <>
-          <div className="strategy-ens-name">
-            {s.ens ? (
-              <EnsHandle ens={s.ens} record={s.ensRecord} />
-            ) : (
-              handle && <code>{handle}</code>
-            )}
+          <div className="ens-sub-card">
+            {live && <BadgeCheck size={18} className="ens-sub-icon" />}
+            <div>
+              <span className="ens-sub-name" title={handle ?? ""}>
+                {handle}
+              </span>
+              <span className="ens-sub-meta">
+                {live
+                  ? `Resolves to ${pub.root ?? s.creator.name}`
+                  : `Will resolve to ${pub.root ?? "your name"}`}
+              </span>
+            </div>
           </div>
-          {live ? (
-            <dl className="strategy-ens-facts">
-              <div>
-                <dt>Resolves to</dt>
-                <dd>
-                  <code>{s.ensRecord!.address}</code>
-                </dd>
-              </div>
-              <div>
-                <dt>Resolver</dt>
-                <dd>
-                  <code>
-                    {s.ensRecord!.resolver.slice(0, 8)}…
-                    {s.ensRecord!.resolver.slice(-6)}
-                  </code>{" "}
-                  <span className="muted">Permissioned Resolver</span>
-                </dd>
-              </div>
-              <div>
-                <dt>Links</dt>
-                <dd className="strategy-ens-links">
-                  <a
-                    href={`https://sepolia.app.ens.domains/${encodeURIComponent(s.ens!)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    ENS app <ArrowUpRight size={11} />
-                  </a>
-                  <a
-                    href={txUrl(s.ensRecord!.txHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Transaction <ArrowUpRight size={11} />
-                  </a>
-                </dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="muted">
-              Not onchain yet. Publishing writes a record on your ENSv2 resolver
-              so <strong>{s.ens ?? "this subname"}</strong> resolves to{" "}
-              {pub.root ?? "your name"}&apos;s address.
-            </p>
-          )}
-          {owner && !live && (
+
+          {live && record ? (
             <>
+              <dl className="ens-rows">
+                <div>
+                  <dt>Address</dt>
+                  <dd>
+                    <code title={record.address}>{short(record.address)}</code>
+                    <CopyValue value={record.address} label="Address" />
+                  </dd>
+                </div>
+                <div>
+                  <dt>Resolver</dt>
+                  <dd>
+                    <a
+                      href={`https://sepolia.etherscan.io/address/${record.resolver}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      title={record.resolver}
+                    >
+                      <code>{short(record.resolver)}</code>
+                    </a>
+                  </dd>
+                </div>
+                <div>
+                  <dt>Network</dt>
+                  <dd>Sepolia · ENSv2</dd>
+                </div>
+                <div>
+                  <dt>Published</dt>
+                  <dd>
+                    {new Date(record.verifiedAt).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </dd>
+                </div>
+              </dl>
+              <div className="ens-actions">
+                <a
+                  className="btn secondary small"
+                  href={ensAppHref(s.ens!)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  ENS app <ArrowUpRight size={13} />
+                </a>
+                <a
+                  className="btn secondary small"
+                  href={txUrl(record.txHash)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Transaction <ArrowUpRight size={13} />
+                </a>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="strategy-ens-copy">
+                Publishing writes this subname to your ENSv2 resolver in one
+                transaction. It resolves to your wallet address.
+              </p>
               {pub.wallet?.demo ? (
-                <span className="ens-subname-warn">
+                <span className="ens-note warn">
                   Connect MetaMask to publish onchain.
                 </span>
               ) : (
                 <SetupNote status={pub.status} />
               )}
-              <div className="strategy-ens-actions">
+              <div className="ens-actions">
                 <button
-                  className="btn primary small"
+                  className="btn primary small ens-wide"
                   disabled={
                     busy || !pub.canWrite || pub.status?.kind === "unavailable"
                   }
@@ -290,7 +350,7 @@ export function StrategyEnsPanel({
             </>
           )}
           <PhaseLine phase={pub.phase} />
-          {pub.error && <span className="ens-subname-error">{pub.error}</span>}
+          {pub.error && <span className="ens-note error">{pub.error}</span>}
         </>
       )}
     </section>
@@ -326,14 +386,14 @@ export function EnsBatchPublish({ strategies }: { strategies: Strategy[] }) {
         </button>
       ) : (
         strategies.length > 0 && (
-          <span className="ens-subname-ok">
-            <BadgeCheck size={13} /> All subnames live
+          <span className="ens-status live">
+            <i /> All subnames live
           </span>
         )
       )}
       <PhaseLine phase={pub.phase} />
       {pending.length > 0 && <SetupNote status={pub.status} />}
-      {pub.error && <span className="ens-subname-error">{pub.error}</span>}
+      {pub.error && <span className="ens-note error">{pub.error}</span>}
     </div>
   );
 }

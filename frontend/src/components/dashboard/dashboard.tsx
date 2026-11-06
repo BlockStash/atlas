@@ -15,7 +15,6 @@ import {
   X,
 } from "lucide-react";
 import { OnchainPortfolio } from "@/components/protocol/portfolio";
-import { ProtocolSummary } from "@/components/protocol/summary";
 import { MarketStocks } from "@/components/protocol/market-stocks";
 import {
   useStockSessions,
@@ -137,7 +136,6 @@ export function Dashboard({
   const marketPins = usePins("overview-markets", wallet?.address);
   const [marketData, setMarketData] = useState<MarketPreference[]>(markets);
   const [error, setError] = useState(""),
-    [query, setQuery] = useState(""),
     [activeMarket, setActiveMarket] = useState<string | null>(null),
     [marketTab, setMarketTab] = useState<"global" | "crypto">("global"),
     [retry, setRetry] = useState(0);
@@ -194,15 +192,10 @@ export function Dashboard({
       : bySelection
   )
     // Crypto has its own tab on /markets, so the Global markets list shows stock exchanges only.
-    .filter((m) => view !== "markets" || m.id !== "crypto")
-    .filter((m) =>
-      `${m.name} ${m.exchange} ${m.index}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-    );
+    .filter((m) => view !== "markets" || m.id !== "crypto");
   const current = marketData.find((m) => m.id === activeMarket);
   return (
-    <DashboardShell search={query} onSearch={setQuery}>
+    <DashboardShell>
       <motion.main
         className="dashboard-content"
         initial={{ opacity: 0, y: 8 }}
@@ -245,7 +238,6 @@ export function Dashboard({
             {state.worldIdVerifiedDemo && <small>DEMO</small>}
           </span>
         </div>
-        {view === "markets" && <ProtocolSummary />}
         {error && (
           <div className="error-box dashboard-error" role="alert">
             {error}
@@ -282,9 +274,7 @@ export function Dashboard({
             ))}
           </div>
         )}
-        {view === "markets" && marketTab === "crypto" && (
-          <CryptoMarket query={query} />
-        )}
+        {view === "markets" && marketTab === "crypto" && <CryptoMarket />}
         {(view === "dashboard" ||
           (view === "markets" && marketTab === "global")) && (
           <section className="market-overview" id="tour-markets">
@@ -338,11 +328,8 @@ export function Dashboard({
             {!sorted.length && (
               <div className="empty-state">
                 <Globe2 />
-                <h3>No matching markets</h3>
-                <p>Try a country or exchange, like India or NASDAQ.</p>
-                <button className="text-button" onClick={() => setQuery("")}>
-                  Clear search
-                </button>
+                <h3>No markets to show</h3>
+                <p>Pick markets in your preferences to see them here.</p>
               </div>
             )}
           </section>
@@ -389,17 +376,6 @@ export function Dashboard({
             <ArkivActivity />
             <SepoliaWallet />
             <OnchainPortfolio view="wallet" />
-            <div className="wallet-explanation panel">
-              <ShieldCheck size={27} />
-              <div>
-                <h3>Your wallet. Your control.</h3>
-                <p>
-                  Token balances and stock positions are read from your
-                  connected Sepolia wallet. The transfer panel above sends
-                  Sepolia test ETH.
-                </p>
-              </div>
-            </div>
           </>
         )}
         {view === "dashboard" && (

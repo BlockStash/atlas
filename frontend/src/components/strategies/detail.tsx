@@ -78,7 +78,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
   const [mode, setMode] = useState<RunMode | null>(null);
   const [showJson, setShowJson] = useState(false);
   const [iconPicker, setIconPicker] = useState(false);
-  const [view, setView] = useState<"overview" | "activity">("overview");
+  const [view, setView] = useState<"overview" | "activity">("activity");
   const [bump, setBump] = useState(0);
   const deployments = useDeployments(s?.spec.plan, bump);
 

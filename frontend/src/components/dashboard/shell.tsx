@@ -1,21 +1,15 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Bell,
-  ChevronDown,
-  ExternalLink,
   Globe2,
   Sparkles,
   LayoutDashboard,
   LogOut,
   Menu,
   PieChart,
-  Search,
   ShieldCheck,
-  Wallet,
-  Landmark,
   Compass,
   Layers,
   X,
@@ -27,17 +21,16 @@ import {
 } from "@/components/atlas/ui";
 import { useAtlas } from "@/components/atlas/provider";
 import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
-import { ENSName } from "@/components/wallet/ens-name";
+import { BalancePills, WalletBar } from "./wallet-bar";
+import { useProtocol } from "@/components/protocol/shared";
 const links = [
   { href: "/home", label: "Atlas AI home", Icon: Sparkles },
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/markets", label: "Global markets", Icon: Globe2 },
-  { href: "/portfolio", label: "My portfolio", Icon: PieChart },
-  { href: "/wallet", label: "Wallet", Icon: Wallet },
-  { href: "/vault", label: "Atlas Vault", Icon: Landmark },
   // Atlas AI trading (/intent) is hidden from the menu; strategies run it via "Create with Atlas AI".
   { href: "/strategies", label: "Explore strategies", Icon: Compass },
   { href: "/strategies/mine", label: "My strategies", Icon: Layers },
+  { href: "/portfolio", label: "My portfolio", Icon: PieChart },
 ];
 /** Personal strategy routes highlight "My strategies"; other /strategies/* pages highlight Explore. */
 const isActive = (href: string, path: string) => {
@@ -54,33 +47,12 @@ const isActive = (href: string, path: string) => {
     );
   return path === href;
 };
-export function DashboardShell({
-  children,
-  search,
-  onSearch,
-}: {
-  children: React.ReactNode;
-  search?: string;
-  onSearch?: (v: string) => void;
-}) {
+export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { wallet, ready, logout, toast, state } = useAtlas();
   const path = usePathname();
-  const [menu, setMenu] = useState(false),
-    [account, setAccount] = useState(false);
-  useEffect(() => {
-    const focus = (event: KeyboardEvent) => {
-      if (
-        event.key === "/" &&
-        !(event.target instanceof HTMLInputElement) &&
-        onSearch
-      ) {
-        event.preventDefault();
-        document.getElementById("market-search")?.focus();
-      }
-    };
-    document.addEventListener("keydown", focus);
-    return () => document.removeEventListener("keydown", focus);
-  }, [onSearch]);
+  const [menu, setMenu] = useState(false);
+  // One onchain read feeds both the balance pills and the account menu.
+  const protocol = useProtocol();
   if (!ready || !wallet || !state.onboardingComplete) return <LoadingScreen />;
   return (
     <div className="app-shell">
@@ -109,17 +81,6 @@ export function DashboardShell({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="demo-callout">
-            <span className="preview-tag">SEPOLIA WORKSPACE</span>
-            <h4>Your holdings, onchain.</h4>
-            <p>
-              Wallet balances and stock positions from your connected wallet.
-            </p>
-            <span>
-              <ShieldCheck size={13} />
-              Sepolia synthetic assets
-            </span>
-          </div>
           <button
             onClick={() =>
               logout().catch(() =>
@@ -144,20 +105,7 @@ export function DashboardShell({
           >
             <Menu size={21} />
           </button>
-          {/* Only pages that filter on it (markets views) show the header search. */}
-          {onSearch && (
-            <label className="search-field">
-              <Search size={16} />
-              <input
-                id="market-search"
-                aria-label="Search markets"
-                placeholder="Search markets, countries…"
-                value={search}
-                onChange={(e) => onSearch(e.target.value)}
-              />
-              <kbd>/</kbd>
-            </label>
-          )}
+          <BalancePills data={protocol.data} />
           <div className="header-tools">
             <div id="tour-clock">
               <GlobalMarketClock />
@@ -166,60 +114,7 @@ export function DashboardShell({
               <SkinToggle />
               <ThemeToggle />
             </span>
-            <button
-              className="notification-button"
-              aria-label="Notifications"
-              onClick={() =>
-                toast("You’re all caught up. Welcome to your global workspace.")
-              }
-            >
-              <Bell size={18} />
-              <span />
-            </button>
-            <div className="account-dropdown">
-              <button
-                className="account-button"
-                onClick={() => setAccount(!account)}
-                aria-expanded={account}
-              >
-                <span className="avatar">A</span>
-                <ENSName address={wallet.address} />
-                <ChevronDown size={13} />
-              </button>
-              {account && (
-                <div className="account-menu">
-                  <span>
-                    <ShieldCheck size={14} />
-                    World ID verified{" "}
-                    {state.worldIdVerifiedDemo
-                      ? "· Demo"
-                      : state.worldIdEnvironment === "staging"
-                        ? "· Simulator"
-                        : ""}
-                  </span>
-                  <Link href="/wallet">Wallet details</Link>
-                  <a
-                    className="account-explorer"
-                    href={`https://sepolia.etherscan.io/address/${wallet.address}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setAccount(false)}
-                  >
-                    View on Sepolia Etherscan <ExternalLink size={13} />
-                  </a>
-                  <Link href="/onboarding" onClick={() => setAccount(false)}>
-                    Review preferences
-                  </Link>
-                  <button
-                    onClick={() =>
-                      logout().catch(() => toast("Could not disconnect."))
-                    }
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              )}
-            </div>
+            <WalletBar data={protocol.data} />
           </div>
         </header>
         {children}

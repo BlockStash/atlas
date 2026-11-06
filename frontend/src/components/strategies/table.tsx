@@ -1,7 +1,16 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronUp, LayoutGrid, List, Star } from "lucide-react";
+import {
+  ArrowUpRight,
+  AtSign,
+  BadgeCheck,
+  ChevronDown,
+  ChevronUp,
+  LayoutGrid,
+  List,
+  Star,
+} from "lucide-react";
 import {
   headlinePerformance,
   riskLevel,
@@ -12,6 +21,33 @@ import {
 } from "@/lib/strategies";
 import { StrategyIconBadge } from "./icon";
 import { CreatorName, ModeBadge, Ret, VisibilityBadge } from "./ui";
+
+/** The strategy's ENS subname: verified and linked to the ENS app once it's live onchain. */
+function SubnameTag({ s }: { s: Strategy }) {
+  const live = s.ensRecord?.name === s.ens;
+  return live ? (
+    <a
+      className="table-subname live"
+      href={`https://sepolia.app.ens.domains/${encodeURIComponent(s.ens!)}`}
+      target="_blank"
+      rel="noreferrer"
+      title={`${s.ens} resolves to ${s.ensRecord!.address} on Sepolia`}
+    >
+      <BadgeCheck size={13} />
+      <span>{s.ens}</span>
+      <ArrowUpRight size={12} className="table-subname-go" />
+    </a>
+  ) : (
+    <span
+      className="table-subname"
+      title={`${s.ens} · not yet published onchain`}
+    >
+      <AtSign size={12} />
+      <span>{s.ens}</span>
+      <em>Not published</em>
+    </span>
+  );
+}
 
 export type SortKey = "3M" | "6M" | "1Y" | "rating" | "aum" | "clones" | "new";
 export interface SortState {
@@ -163,6 +199,7 @@ export function StrategyTable({
           {rows.map((s) => {
             const perf = headlinePerformance(s);
             const rating = strategyRating(perf);
+            const liveEns = !!s.ens && s.ensRecord?.name === s.ens;
             const cat = strategyCategory(s);
             const risk = riskLevel(s);
             const mine = sameAddress(s.creator.address, account);
@@ -183,11 +220,19 @@ export function StrategyTable({
                 <td className="name-col">
                   <Link href={`/strategies/${s.id}`}>{s.name}</Link>
                   <span className="fund-sub">
-                    <CreatorName
-                      name={s.creator.name}
-                      address={s.creator.address}
-                      you={mine}
-                    />
+                    {/* A live subname names the creator too, so it takes the creator's place. */}
+                    {liveEns ? (
+                      <SubnameTag s={s} />
+                    ) : (
+                      <>
+                        <CreatorName
+                          name={s.creator.name}
+                          address={s.creator.address}
+                          you={mine}
+                        />
+                        {mine && s.ens && <SubnameTag s={s} />}
+                      </>
+                    )}
                     {perf ? (
                       <ModeBadge mode={perf.mode} />
                     ) : (
@@ -213,10 +258,10 @@ export function StrategyTable({
                 </td>
                 <td className="num rating">
                   {rating ? (
-                    <>
+                    <span className="rating-value">
+                      <Star size={14} fill="currentColor" />
                       {rating}
-                      <Star size={15} fill="currentColor" />
-                    </>
+                    </span>
                   ) : (
                     <span className="muted">--</span>
                   )}
