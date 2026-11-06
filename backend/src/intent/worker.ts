@@ -12,6 +12,18 @@ import { formatPrice, parsePrice, quantityFor, formatDecimal } from "./math.js";
 import { resolveNotional } from "./risk.js";
 
 const MAX_RETRIES = 5;
+
+/** One short line for users: viem's short message, no URLs (RPC URLs can carry API keys). */
+export function publicMessage(e: unknown): string {
+  const x = e as { shortMessage?: string; details?: string; message?: string };
+  const raw = `${x?.shortMessage ?? x?.message ?? String(e)} ${x?.details ?? ""}`;
+  if (/\b429\b|rate limit|exceeds defined limit|too many requests/i.test(raw))
+    return "The Sepolia RPC is rate-limiting Atlas; it will retry shortly.";
+  return (x?.shortMessage ?? x?.message ?? String(e))
+    .split("\n")[0]!
+    .replace(/https?:\/\/\S+/g, "[rpc]")
+    .slice(0, 240);
+}
 const backoff = (n: number) => Math.min(15 * 2 ** n, 300);
 
 /**
@@ -73,14 +85,11 @@ export class ExecutionWorker {
     const err =
       e instanceof IntentError
         ? e
-        : new IntentError(
-            "RPC_ERROR",
-            String((e as Error)?.message ?? e),
-            500,
-            undefined,
-            true,
-          );
-    const exiting = row.status === "EXIT_TRIGGERED";
+        : new IntentError("RPC_ERROR", publicMessage(e), 500, undefined, true);
+    // Once a live buy has been sent the position exists on-chain: keep retrying, never FAILED.
+    const exiting =
+      row.status === "EXIT_TRIGGERED" ||
+      !!this.ctx.repo.step(`${id}:ENTRY`, "buy");
     if (err.retryable) {
       const n = row.retry_count + 1;
       if (n >= MAX_RETRIES && !exiting) {
@@ -145,6 +154,24 @@ export class ExecutionWorker {
         "EXECUTION_FAILED",
         `${this.sym(row)} strategy failed: ${err.message}`,
       );
+      // Live mode: return aUSDT that was pulled for a buy that never happened.
+      const adapter = this.ctx.adapter as {
+        abandon?: (id: string, user: string) => Promise<string | null>;
+      };
+      adapter
+        .abandon?.(row.id, row.user_address)
+        .then((tx) => {
+          if (!tx) return;
+          this.log(row.id, "AUSDT_REFUNDED", { txHash: tx });
+          this.notify(
+            row,
+            "AUSDT_REFUNDED",
+            `${this.sym(row)}: your aUSDT was returned.`,
+          );
+        })
+        .catch((e) =>
+          this.log(row.id, "REFUND_FAILED", { message: publicMessage(e) }),
+        );
     }
   }
   private sym = (row: IntentRow) =>
@@ -284,6 +311,7 @@ export class ExecutionWorker {
       stockId: intent.asset.stockId,
       exchange: intent.asset.market,
       referencePrice: px,
+      maxSlippageBps: intent.constraints.maxSlippageBps,
       notionalUSDT: spend,
       now,
     });
@@ -548,6 +576,7 @@ export class ExecutionWorker {
       stockId: intent.asset.stockId,
       exchange: intent.asset.market,
       referencePrice: px,
+      maxSlippageBps: intent.constraints.maxSlippageBps,
       quantity: qty,
       now,
     });

@@ -28,6 +28,8 @@ import {
   PERIODS,
   describeRule,
   generateSpec,
+  unsupportedAssets,
+  unsupportedMessage,
   isEns,
   normalizeWeights,
   simulate,
@@ -35,12 +37,25 @@ import {
   validateSpec,
   type Frequency,
   type RiskProfile,
+  type StrategyIcon,
   type StrategySpec,
   type Visibility,
+  iconKey,
+  pickIcon,
 } from "@/lib/strategies";
-import { AllocationBar, EquityChart, Ret, assetColor } from "./ui";
+import { IconPicker, StrategyIconBadge } from "./icon";
+import {
+  AllocationBar,
+  EquityChart,
+  Ret,
+  assetColor,
+  useStrategyStore,
+} from "./ui";
 
 export interface EditorValue {
+  /** Set when editing an existing strategy, so its own icon is not counted as taken. */
+  id?: string;
+  icon?: StrategyIcon | null;
   name: string;
   tagline: string;
   prompt: string;
@@ -58,14 +73,14 @@ interface Message {
 const STARTERS = [
   "Safe dividend income from Indian and UK bluechips, rebalance quarterly with an 8% stop loss",
   "Aggressive AI tech momentum across US and Europe, add on RSI oversold, weekly rebalance",
-  "60% BTC 40% ETH, buy the 15% dip, take profit at 40%",
-  "Diversified global balanced portfolio with a small crypto sleeve, monthly rebalance",
+  "60% NVDA 40% MSFT, buy the 15% dip, take profit at 40%",
+  "Diversified global balanced portfolio across US, India and Europe, monthly rebalance",
 ];
 const REFINES = [
   "Make it more conservative",
   "Rebalance weekly",
   "Add a 10% stop loss",
-  "Add BTC",
+  "Add 10% AAPL",
   "Buy the 10% dip",
   "Add a trend filter",
 ];
@@ -115,7 +130,9 @@ export function StrategyStudio({
   onSubmit,
   onCancel,
   showVisibility = true,
+  autoPrompt,
 }: {
+  autoPrompt?: string;
   initial?: EditorValue;
   submitLabel: string;
   onSubmit: (v: EditorValue) => void;
@@ -129,7 +146,7 @@ export function StrategyStudio({
       id: 0,
       role: "ai",
       text: initial
-        ? `Loaded “${initial.name}”. Tell me what to change, for example “make it more conservative” or “add 10% BTC”.`
+        ? `Loaded “${initial.name}”. Tell me what to change, for example “make it more conservative” or “add 10% AAPL”.`
         : "Hi! I'm Atlas AI. Describe the strategy you want: markets, assets or sectors, risk, rebalance cadence, stop loss, or signals like RSI, dips and trends. I'll build it on the right.",
     },
     ...(initial
@@ -151,7 +168,21 @@ export function StrategyStudio({
       initial ? JSON.stringify(initial.spec, null, 2) : "",
     ),
     [error, setError] = useState(""),
-    [addSymbol, setAddSymbol] = useState("");
+    [addSymbol, setAddSymbol] = useState(""),
+    [icon, setIcon] = useState<StrategyIcon | null>(initial?.icon ?? null),
+    [pickerOpen, setPickerOpen] = useState(false);
+  const store = useStrategyStore();
+  const otherIcons = useMemo(
+    () =>
+      store.strategies.filter((x) => x.id !== initial?.id).map((x) => x.icon),
+    [store.strategies, initial?.id],
+  );
+  const takenIcons = useMemo(
+    () => new Set(otherIcons.map(iconKey)),
+    [otherIcons],
+  );
+  // Until the user picks one, show the unique default the strategy will be saved with.
+  const shownIcon = icon ?? pickIcon(name || "new strategy", otherIcons);
   const thread = useRef<HTMLDivElement>(null);
   const thinking = step !== null;
 
@@ -179,6 +210,16 @@ export function StrategyStudio({
   const handle = strategyHandle(name || "my strategy", ensName);
   const total = spec?.universe.reduce((t, a) => t + a.weight, 0) ?? 0;
 
+  // A prompt handed over from the home page is sent once, as if typed.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (!autoPrompt || initial || autoSent.current) return;
+    autoSent.current = true;
+    const t = setTimeout(() => void send(autoPrompt), 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrompt]);
+
   async function send(text: string) {
     const t = text.trim();
     if (!t || thinking) return;
@@ -195,6 +236,17 @@ export function StrategyStudio({
       await sleep(320);
     }
     const g = generateSpec(nextTurns.join(". "));
+    // Only listed tokenized stocks can be traded: refuse instead of building something else.
+    const blocked = unsupportedAssets(t);
+    if (blocked.length) {
+      setTurns(turns); // Drop the rejected turn so it doesn't leak into later refinements.
+      setStep(null);
+      setMessages((m) => [
+        ...m,
+        { id: Date.now() + 1, role: "ai", text: unsupportedMessage(blocked) },
+      ]);
+      return;
+    }
     const prev = spec;
     setSpec(g.spec);
     setJson(JSON.stringify(g.spec, null, 2));
@@ -258,6 +310,7 @@ export function StrategyStudio({
       prompt: turns.join(". "),
       spec: final,
       visibility,
+      icon: shownIcon,
     });
   }
 
@@ -340,7 +393,7 @@ export function StrategyStudio({
             disabled={thinking}
             placeholder={
               turns.length
-                ? "Refine it: “drop crypto”, “add 20% NVDA”, “quarterly”…"
+                ? "Refine it: “drop India”, “add 20% NVDA”, “quarterly”…"
                 : "e.g. Hold the top US and European AI stocks, trim on RSI above 70, 12% stop loss"
             }
             onChange={(e) => setDraft(e.target.value)}
@@ -410,22 +463,42 @@ export function StrategyStudio({
           </div>
         ) : (
           <div className="studio-body">
-            <input
-              className="studio-name"
-              value={name}
-              maxLength={60}
-              aria-label="Strategy name"
-              placeholder="Name your fund"
-              onChange={(e) => {
-                setName(e.target.value);
-                setNameTouched(true);
-              }}
-            />
+            <div className="studio-name-row">
+              <button
+                type="button"
+                className="studio-icon-button"
+                aria-label="Change strategy icon"
+                aria-expanded={pickerOpen}
+                title="Change icon"
+                onClick={() => setPickerOpen(!pickerOpen)}
+              >
+                <StrategyIconBadge icon={shownIcon} size={52} />
+                <span>Icon</span>
+              </button>
+              <input
+                className="studio-name"
+                value={name}
+                maxLength={60}
+                aria-label="Strategy name"
+                placeholder="Name your fund"
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameTouched(true);
+                }}
+              />
+            </div>
+            {pickerOpen && (
+              <IconPicker
+                value={shownIcon}
+                taken={takenIcons}
+                onChange={(next) => setIcon(next)}
+              />
+            )}
             <div className="studio-ens">
               <AtSign size={14} />
               {handle ? (
                 <>
-                  <code>{handle}</code>
+                  <span className="ens-chip handle">{handle}</span>
                   <span className="positive">Linked to your ENS</span>
                 </>
               ) : (

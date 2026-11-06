@@ -22,13 +22,23 @@ import {
   usd,
 } from "@/lib/strategies";
 import { Ret, StrategyCard, useStrategyStore } from "./ui";
+import {
+  StrategyTable,
+  ViewToggle,
+  sortStrategies,
+  type SortState,
+  type ViewMode,
+} from "./table";
+import { StrategyIconBadge } from "./icon";
 
 type Filter = "all" | "public" | "private" | "forks";
 
 export function MyStrategiesPage() {
-  const { toast, state } = useAtlas();
+  const { toast, state, wallet } = useAtlas();
   const store = useStrategyStore();
-  const [filter, setFilter] = useState<Filter>("all");
+  const [filter, setFilter] = useState<Filter>("all"),
+    [view, setView] = useState<ViewMode>("list"),
+    [sort, setSort] = useState<SortState>({ key: "new", dir: "desc" });
 
   const positions = store.positions.map((p) => {
     const s = store.get(p.strategyId);
@@ -45,12 +55,15 @@ export function MyStrategiesPage() {
     .reduce((t, s) => t + s.stats.creatorEarnings, 0);
   const feesPaid = positions.reduce((t, x) => t + x.p.creatorFee, 0);
 
-  const list = store.mine.filter((s) =>
-    filter === "all"
-      ? true
-      : filter === "forks"
-        ? !!s.forkedFrom
-        : s.visibility === filter,
+  const list = sortStrategies(
+    store.mine.filter((s) =>
+      filter === "all"
+        ? true
+        : filter === "forks"
+          ? !!s.forkedFrom
+          : s.visibility === filter,
+    ),
+    sort,
   );
   const hasEns = isEns(state.ensName);
 
@@ -82,11 +95,19 @@ export function MyStrategiesPage() {
           <AtSign size={20} />
           {hasEns ? (
             <div>
-              <strong>Strategies are published under {state.ensName}</strong>
+              <strong>
+                Strategies are published under{" "}
+                <span className="ens-chip">
+                  <AtSign size={12} />
+                  {state.ensName}
+                </span>
+              </strong>
               <span>
                 Each strategy gets a subname such as{" "}
-                <code>global-growth.{state.ensName}</code> so others can find
-                and verify it.
+                <span className="ens-chip handle">
+                  global-growth.{state.ensName}
+                </span>{" "}
+                so others can find and verify it.
               </span>
             </div>
           ) : (
@@ -137,39 +158,62 @@ export function MyStrategiesPage() {
           </div>
           {positions.length ? (
             <div className="strategy-table-wrap">
-              <table className="strategy-table">
+              <table className="strategy-table positions-table">
                 <thead>
                   <tr>
                     <th>Strategy</th>
                     <th>Mode</th>
                     <th>Started</th>
-                    <th>Capital</th>
-                    <th>Value</th>
-                    <th>Return</th>
-                    <th>Creator fee</th>
+                    <th className="num">Capital</th>
+                    <th className="num">Current value</th>
+                    <th className="num">Return</th>
+                    <th className="num">Creator fee</th>
                   </tr>
                 </thead>
                 <tbody>
                   {positions.map(({ p, s, perf }) => (
                     <tr key={p.id}>
                       <td>
-                        <Link href={`/strategies/${p.strategyId}`}>
-                          {s?.name ?? "Removed strategy"}
-                        </Link>
-                        {s?.ens && <small className="block">{s.ens}</small>}
+                        <div className="position-name">
+                          {s && <StrategyIconBadge icon={s.icon} size={40} />}
+                          <div>
+                            <Link href={`/strategies/${p.strategyId}`}>
+                              {s?.name ?? "Removed strategy"}
+                            </Link>
+                            {s?.ens && <small>{s.ens}</small>}
+                          </div>
+                        </div>
                       </td>
                       <td>
                         <span className={`strategy-mode ${p.mode}`}>
                           {p.mode === "live" ? "Live" : "Paper"}
                         </span>
                       </td>
-                      <td>{new Date(p.startedAt).toLocaleDateString()}</td>
-                      <td>{usd(p.capital)}</td>
-                      <td>{usd(perf?.value ?? p.capital)}</td>
                       <td>
+                        {new Date(p.startedAt).toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="num">
+                        {usd(p.capital)} <small>aUSDT</small>
+                      </td>
+                      <td className="num">
+                        {usd(perf?.value ?? p.capital)} <small>aUSDT</small>
+                      </td>
+                      <td className="num">
                         <Ret v={perf?.totalReturn ?? 0} />
                       </td>
-                      <td>{p.creatorFee ? `${usd(p.creatorFee)}` : "—"}</td>
+                      <td className="num">
+                        {p.creatorFee ? (
+                          <>
+                            {usd(p.creatorFee)} <small>aUSDT</small>
+                          </>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -216,14 +260,25 @@ export function MyStrategiesPage() {
               </button>
             ))}
           </div>
+          <ViewToggle view={view} onChange={setView} />
         </div>
 
         {list.length ? (
-          <div className="strategy-grid">
-            {list.map((s) => (
-              <StrategyCard key={s.id} s={s} mine />
-            ))}
-          </div>
+          view === "list" ? (
+            <StrategyTable
+              rows={list}
+              sort={sort}
+              onSort={setSort}
+              account={wallet?.address}
+              showVisibility
+            />
+          ) : (
+            <div className="strategy-grid">
+              {list.map((s) => (
+                <StrategyCard key={s.id} s={s} mine />
+              ))}
+            </div>
+          )
         ) : (
           <div className="panel protocol-empty">
             <Wand2 />
@@ -254,8 +309,10 @@ export function MyStrategiesPage() {
           <button
             className="text-button"
             onClick={() => {
-              store.resetDemo();
-              toast("Strategy demo data reset.");
+              store.resetDemo().then(
+                () => toast("Strategy demo data reset."),
+                (e: Error) => toast(e.message),
+              );
             }}
           >
             <RotateCcw size={12} /> Reset demo data

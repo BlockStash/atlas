@@ -9,6 +9,7 @@ import {
   type ModelClient,
 } from "../intent/parser.js";
 import { IntentError } from "../intent/types.js";
+import { resolveAsset } from "../intent/assets.js";
 import type { WalletSession } from "../types.js";
 
 /** Separate wallet-scoped in-memory ledgers. Never creates an IntentEngine or chainRegistry. */
@@ -110,6 +111,73 @@ export function paperRouter(
       }
       throw error;
     }
+  });
+  /**
+   * Turns an Atlas AI trade plan into a paper order on this wallet's simulation clock: buy now
+   * (next simulated minute) with the plan's spend, slippage cap and bracket. Returns a preview and
+   * one-use confirmation token; nothing fills until /:id/confirm.
+   */
+  r.post("/from-intent", (req, res) => {
+    const b = z
+      .object({
+        symbol: z.string().min(1).max(16),
+        notionalUSDT: z.number().positive().max(1_000_000),
+        maxSlippageBps: z.number().int().min(0).max(1000).optional(),
+        takeProfitBps: z.number().int().min(1).max(10000).optional(),
+        stopLossBps: z.number().int().min(1).max(9999).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    const e = engine(res),
+      asset = resolveAsset(b.symbol);
+    const quote = asset && e.market.quoteSync(asset.stockId, e.now);
+    if (!asset?.active || !quote)
+      throw new IntentError(
+        "INVALID_INTENT",
+        "This stock has no paper price yet. Open Paper Trading and start the clock first.",
+        422,
+      );
+    const qty =
+      Math.floor((b.notionalUSDT / Number(quote.priceUSDT)) * 1e8) / 1e8;
+    if (!(qty > 0))
+      throw new IntentError(
+        "INVALID_INTENT",
+        "Spend is too small for one share fraction.",
+        422,
+      );
+    const at = new Date((Math.floor(e.now / 60) + 1) * 60 * 1000),
+      date = at.toISOString().slice(0, 10),
+      hhmm = (d: Date) => d.toISOString().slice(11, 16),
+      expiry = new Date(
+        Math.min(at.getTime() + 3600_000, Date.parse(`${date}T23:59:00Z`)),
+      );
+    if (expiry.getTime() <= at.getTime())
+      throw new IntentError(
+        "INVALID_INTENT",
+        "The paper clock is at the end of its simulated day. Reset Paper Trading and try again.",
+        422,
+      );
+    const defaults: string[] = [];
+    if (b.takeProfitBps === undefined) defaults.push("take profit +10%");
+    if (b.stopLossBps === undefined) defaults.push("stop loss -5%");
+    if (b.maxSlippageBps === undefined) defaults.push("max slippage 1%");
+    res.json({
+      ...e.preview(
+        {
+          symbol: asset.symbol,
+          quantity: String(qty),
+          entryTime: hhmm(at),
+          expiryTime: hhmm(expiry),
+          timezone: "UTC",
+          maxSlippageBps: b.maxSlippageBps ?? 100,
+          takeProfitBps: b.takeProfitBps ?? 1000,
+          stopLossBps: b.stopLossBps ?? 500,
+        },
+        date,
+        "atlas-ai",
+      ),
+      defaults,
+    });
   });
   r.post("/import", (req, res) => {
     const b = z

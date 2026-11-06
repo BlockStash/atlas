@@ -32,6 +32,7 @@ import type {
   PriceSource,
 } from "./adapters.js";
 import { DemoPriceSource, CalendarMarketSource } from "./adapters.js";
+import type { OnchainExecutor } from "./onchain.js";
 
 /** Optional on-chain mirror (AtlasIntentManager). Failures never block the off-chain lifecycle. */
 export interface IntentRegistry {
@@ -56,6 +57,22 @@ export interface EngineContext {
   /** Demo-only controls; undefined outside demo mode. */
   demoPrices?: DemoPriceSource;
   demoMarkets?: CalendarMarketSource;
+  /** Live Sepolia executor (ERC-7715 aUSDT permissions); undefined when execution is simulated. */
+  onchain?: OnchainExecutor;
+}
+
+/** What a live strategy needs in the vault, and what the user has. Amounts are USDT strings. */
+export interface Funding {
+  requiredUSDT: string;
+  vaultUSDT: string;
+  walletUSDT: string;
+  shortfallUSDT: string;
+  permission: {
+    tokenAddress: string;
+    allowanceShares: string;
+    delegate: string;
+    delegationManager: string;
+  };
 }
 
 export interface Evaluation {
@@ -81,6 +98,8 @@ export interface Evaluation {
     nextClose: number | null;
   } | null;
   maxSpendUSDT: string | null;
+  /** Live mode only: vault funding needed and the MetaMask permission to request. */
+  funding?: Funding;
 }
 
 const EDITABLE_STATUSES: AtlasIntentStatus[] = [
@@ -160,7 +179,18 @@ export class IntentService {
       portfolio,
       limits: this.ctx.limits,
     });
-    const blocking = [...risk.violations];
+    let blocking = [...risk.violations];
+    let funding: Funding | undefined;
+    if (this.ctx.onchain) {
+      // Live mode funds the vault (USDT → aUSDT) before activation, so a low balance is not
+      // a reason to stop the preview. Activation re-checks the real balance.
+      blocking = blocking.filter((b) => b.code !== "INSUFFICIENT_BALANCE");
+      funding = await this.funding(
+        risk.notional,
+        intent.constraints.maxSlippageBps,
+        portfolio,
+      );
+    }
     if (portfolio.activeIntents >= this.ctx.limits.maxActiveIntents)
       blocking.push({
         code: "MAX_ACTIVE_INTENTS",
@@ -179,6 +209,28 @@ export class IntentService {
       risk: risk.metrics,
       blockingRisk: blocking,
       maxSpendUSDT: formatDecimal(risk.notional, 6),
+      ...(funding ? { funding } : {}),
+    };
+  }
+
+  private async funding(
+    notional: bigint,
+    slippageBps: number | undefined,
+    portfolio: PortfolioView,
+  ): Promise<Funding> {
+    const p = await this.ctx.onchain!.permissionRequest(notional, slippageBps);
+    const short = p.requiredAssetsUSDT - portfolio.vaultAssetsUSDT;
+    return {
+      requiredUSDT: formatDecimal(p.requiredAssetsUSDT, 6),
+      vaultUSDT: formatDecimal(portfolio.vaultAssetsUSDT, 6),
+      walletUSDT: formatDecimal(portfolio.walletUSDT, 6),
+      shortfallUSDT: formatDecimal(short > 0n ? short : 0n, 6),
+      permission: {
+        tokenAddress: p.tokenAddress,
+        allowanceShares: p.allowanceShares.toString(),
+        delegate: p.delegate,
+        delegationManager: p.delegationManager,
+      },
     };
   }
 
@@ -242,7 +294,7 @@ export class IntentService {
         nonce,
         maxSpend: maxSpend.toString(),
         now,
-        demo: this.ctx.demoMode,
+        demo: !this.ctx.onchain,
       });
       this.log(intent.id, "PROMPT_RECEIVED", {
         prompt: intent.metadata.originalPrompt,
@@ -287,6 +339,11 @@ export class IntentService {
     user: string,
     signature: string,
     walletIsDemo: boolean,
+    permission?: {
+      context: string;
+      delegationManager: string;
+      allowanceShares?: string;
+    },
   ) {
     const row = this.owned(id, user);
     const now = this.ctx.now();
@@ -348,8 +405,25 @@ export class IntentService {
           401,
         );
     }
+    // Live execution spends the user's aUSDT through a MetaMask permission granted to the executor.
+    if (this.ctx.onchain) {
+      if (!permission)
+        throw new IntentError(
+          "USER_REJECTED_SIGNATURE",
+          "Grant Atlas the aUSDT permission in MetaMask to activate this strategy.",
+          422,
+        );
+      this.ctx.onchain.verifyPermission(permission, row.user_address);
+    }
     // Re-run deterministic checks: prices, balances and limits may have changed since the preview.
     const ev = await this.evaluate({ ...intent });
+    if (ev.funding && Number(ev.funding.shortfallUSDT) > 0)
+      throw new IntentError(
+        "INSUFFICIENT_BALANCE",
+        `Convert at least ${ev.funding.shortfallUSDT} USDT to aUSDT before activating.`,
+        422,
+        ev.funding,
+      );
     if (ev.issues.length || ev.blockingRisk.length) {
       this.log(id, "ACTIVATION_REJECTED", {
         issues: ev.issues,
@@ -370,6 +444,23 @@ export class IntentService {
         now,
         { signature, signature_type: signatureType },
       );
+      if (moved && permission && ev.funding)
+        this.ctx.repo.savePermission({
+          intent_id: id,
+          context: permission.context,
+          delegation_manager: permission.delegationManager,
+          token: ev.funding.permission.tokenAddress,
+          // Never more than MetaMask actually granted.
+          allowance: (() => {
+            const asked = BigInt(ev.funding.permission.allowanceShares);
+            const granted = permission.allowanceShares
+              ? BigInt(permission.allowanceShares)
+              : asked;
+            return (granted < asked ? granted : asked).toString();
+          })(),
+          expiry: row.valid_until,
+          created_at: now,
+        });
       if (moved) {
         this.log(id, "USER_SIGNED", {
           signatureType,
@@ -516,6 +607,99 @@ export class IntentService {
       demo: row.demo === 1,
       executionMode: row.demo === 1 ? "SIMULATED" : this.ctx.adapter.kind,
       onchainTx: row.onchain_tx,
+    };
+  }
+
+  /**
+   * Every fill from the user's Atlas AI plans, newest first, in display units, plus realized
+   * P&L for closed round trips (exit proceeds − entry cost, both net of fees).
+   */
+  trades(user: string) {
+    const trades: {
+      id: string;
+      intentId: string;
+      kind: "ENTRY" | "EXIT";
+      side: "BUY" | "SELL";
+      symbol: string;
+      companyName: string;
+      market: string;
+      quantity: string;
+      priceUSDT: string;
+      notionalUSDT: string;
+      feeUSDT: string;
+      slippageBps: number;
+      executedAt: number;
+      txHash: string | null;
+      mode: string;
+      transactions: { step: string; txHash: string }[];
+      prompt: string;
+      exitReason: string | null;
+      realizedPnlUSDT: string | null;
+    }[] = [];
+    let realized = 0n,
+      volume = 0n,
+      fees = 0n;
+    for (const row of this.ctx.repo.list(user)) {
+      const intent = JSON.parse(row.normalized_intent_json) as AtlasTradeIntent;
+      const execs = this.ctx.repo.executions(row.id);
+      const entry = execs.find((e) => e.kind === "ENTRY"),
+        exit = execs.find((e) => e.kind === "EXIT");
+      const roundTrip =
+        entry && exit
+          ? BigInt(exit.notional_usdt) -
+            BigInt(exit.fee_usdt) -
+            BigInt(entry.notional_usdt) -
+            BigInt(entry.fee_usdt)
+          : null;
+      if (roundTrip !== null) realized += roundTrip;
+      const position = this.ctx.repo.position(row.id);
+      for (const e of execs) {
+        volume += BigInt(e.notional_usdt);
+        fees += BigInt(e.fee_usdt);
+        trades.push({
+          id: e.id,
+          intentId: row.id,
+          kind: e.kind,
+          side: e.side,
+          symbol: intent.asset.symbol,
+          companyName: intent.asset.companyName,
+          market: intent.asset.market,
+          quantity: formatDecimal(BigInt(e.quantity), 18),
+          priceUSDT: e.price_usdt,
+          notionalUSDT: formatDecimal(BigInt(e.notional_usdt), 6),
+          feeUSDT: formatDecimal(BigInt(e.fee_usdt), 6),
+          slippageBps: e.slippage_bps,
+          executedAt: e.executed_at,
+          txHash: e.tx_hash,
+          mode: row.demo === 1 ? "SIMULATED" : this.ctx.adapter.kind,
+          // Every Sepolia transaction behind this fill (pull, buy, change / sell, payout).
+          transactions: this.ctx.repo
+            .steps(row.id)
+            .filter((s) => s.execution_id === e.id)
+            .map((s) => ({ step: s.step, txHash: s.tx_hash })),
+          prompt: row.original_prompt,
+          exitReason:
+            e.kind === "EXIT" ? (position?.exit_reason ?? null) : null,
+          realizedPnlUSDT:
+            e.kind === "EXIT" && roundTrip !== null
+              ? formatDecimal(roundTrip, 6)
+              : null,
+        });
+      }
+    }
+    trades.sort((a, b) => b.executedAt - a.executedAt);
+    const open = this.ctx.repo
+      .positionsFor(user)
+      .filter((p) => p.status === "OPEN").length;
+    return {
+      trades,
+      summary: {
+        count: trades.length,
+        openPositions: open,
+        volumeUSDT: formatDecimal(volume, 6),
+        feesUSDT: formatDecimal(fees, 6),
+        realizedPnlUSDT: formatDecimal(realized, 6),
+      },
     };
   }
 

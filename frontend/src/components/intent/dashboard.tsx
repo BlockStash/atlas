@@ -1,7 +1,7 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, Bot, Plus } from "lucide-react";
+import { Bell, Bot, Plus, Sparkles } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { useAtlas } from "@/components/atlas/provider";
 import { DemoBanner } from "./new";
@@ -54,6 +54,8 @@ export function IntentDashboard() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  /** Notification ids from the previous poll; null until the first load (no toasts for old ones). */
+  const seenNotes = useRef<Set<Notification["id"]> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -62,16 +64,16 @@ export function IntentDashboard() {
         intentApi.notifications(),
       ]);
       setItems(l.intents);
-      setNotes((prev) => {
-        // Surface notifications that arrived since the last poll.
-        const seen = new Set(prev.map((p) => p.id));
-        if (prev.length)
-          n.notifications
-            .filter((x) => !seen.has(x.id))
-            .slice(0, 3)
-            .forEach((x) => toast(x.message));
-        return n.notifications;
-      });
+      // Surface notifications that arrived since the last poll. Kept outside the state updater:
+      // updaters run during render, and toasting there updates AtlasProvider mid-render.
+      const seen = seenNotes.current;
+      if (seen)
+        n.notifications
+          .filter((x) => !seen.has(x.id))
+          .slice(0, 3)
+          .forEach((x) => toast(x.message));
+      seenNotes.current = new Set(n.notifications.map((x) => x.id));
+      setNotes(n.notifications);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load strategies.");
@@ -109,13 +111,13 @@ export function IntentDashboard() {
       <main className="protocol-content intent-page">
         <div className="section-heading">
           <div>
-            <span className="eyebrow">AI INTENT TRADING</span>
+            <span className="eyebrow">ATLAS AI TRADING</span>
             <h1>
-              <Bot size={22} /> Intent strategies
+              <Sparkles size={22} /> Atlas AI trades
             </h1>
           </div>
           <Link className="btn primary small" href="/intent/new">
-            <Plus size={14} /> New strategy
+            <Plus size={14} /> New trade
           </Link>
         </div>
         <DemoBanner simulated={cfg?.executionMode === "SIMULATED"} />
@@ -318,9 +320,13 @@ function IntentCard({
           </>
         )}
         {v.error && (
-          <div className="intent-row warn">
-            <span>{v.error.code}</span>
-            <strong>{v.error.message}</strong>
+          <div className="intent-row warn intent-error">
+            <span>
+              {v.status === "EXECUTING" || v.status === "EXIT_TRIGGERED"
+                ? "Retrying"
+                : v.error.code.replace(/_/g, " ").toLowerCase()}
+            </span>
+            <strong title={v.error.message}>{v.error.message}</strong>
           </div>
         )}
       </div>

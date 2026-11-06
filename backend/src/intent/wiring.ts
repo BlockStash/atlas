@@ -10,6 +10,7 @@ import {
   SimulatedExecutionAdapter,
   ledgerPortfolio,
 } from "./adapters.js";
+import { OnchainExecutor, onchainPortfolio } from "./onchain.js";
 import { aiConfigured, anthropicModel } from "./parser.js";
 import { IntentRepository } from "./repository.js";
 import { limitsFromEnv } from "./risk.js";
@@ -91,8 +92,18 @@ export function createIntentEngine(o: {
   );
   const demoPrices = demoMode ? new DemoPriceSource() : undefined;
   const prices = new CompositePriceSource(new FeedPriceSource(), demoPrices);
-  const markets = new CalendarMarketSource(demoMode);
+  const markets = new CalendarMarketSource(
+    demoMode,
+    env.MARKETS_ALWAYS_OPEN !== "false",
+  );
+  // Live Sepolia execution: MetaMask aUSDT permissions redeemed by the Atlas executor.
+  const executorKey = env.INTENT_EXECUTOR_PRIVATE_KEY;
+  const onchain =
+    env.INTENT_EXECUTION === "onchain" && executorKey
+      ? new OnchainExecutor(repo, executorKey, env.PROTOCOL_RPC_URL, now)
+      : undefined;
   const portfolio = async (user: string): Promise<PortfolioView> => {
+    if (onchain) return onchainPortfolio(onchain, repo, prices, user, now());
     if (demoMode) return ledgerPortfolio(repo, prices, user, now());
     if (!o.portfolioRead) throw new Error("Portfolio reader unavailable");
     return snapshotToView(await o.portfolioRead(user), repo.countActive(user));
@@ -111,9 +122,10 @@ export function createIntentEngine(o: {
         env.INTENT_MANAGER_ADDRESS ||
         "0x0000000000000000000000000000000000000000",
     },
-    adapter: new SimulatedExecutionAdapter(repo),
+    adapter: onchain ?? new SimulatedExecutionAdapter(repo),
+    onchain,
     model: aiConfigured() ? anthropicModel() : undefined,
-    registry: demoMode ? undefined : chainRegistry(env),
+    registry: demoMode || onchain ? undefined : chainRegistry(env),
     demoPrices,
     demoMarkets: demoMode ? markets : undefined,
   };

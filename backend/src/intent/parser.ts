@@ -10,7 +10,7 @@ import {
 } from "./types.js";
 import { knownNames, resolveAsset } from "./assets.js";
 import { newIntentId, normalizeStrategy } from "./canonical.js";
-import { sessionEnd } from "./market-engine.js";
+import { marketsAlwaysOpen, sessionEnd } from "./market-engine.js";
 import { parseDecimal } from "./math.js";
 
 export const MAX_PROMPT_CHARS = 600;
@@ -45,6 +45,8 @@ RULES (non-negotiable):
 - If the request needs options, futures, leverage, margin, short selling, derivatives, custom formulas or code, output {"status":"UNSUPPORTED_INTENT","reason":"..."}.
 - If a required detail is missing or vague (e.g. "when it looks good"), output {"status":"CLARIFICATION_NEEDED","question":"...","field":"entry|allocation|asset|side|exit"}. Do not guess.
 - Current unix time: ${now}. Use it only to turn relative times into absolute unix seconds.
+- Atlas markets are open 24/7. "Now", "immediately" or no entry timing means [{"type":"MARKET_OPEN"}] (executes right away).
+- Relative entry like "after 30 seconds" or "in 5 minutes" is AFTER_TIME = now + delay. A hold like "sell 10 seconds after buying" is TIME_EXIT = entry time + hold.
 
 SCHEMA:
 {"status":"OK","intent":{
@@ -115,14 +117,41 @@ export function groundingIssues(prompt: string, d: IntentDraft): string[] {
 }
 
 const UNSUPPORTED =
-  /\b(options?|calls?|puts?|futures?|leverag\w*|margin|short(?:\s|-)?sell\w*|shorting|derivatives?|perpetuals?|swaps?|python|script|code)\b|\b\d+\s?x\b/i;
+  /\b(options?|calls?|puts|futures?|leverag\w*|margin|short(?:\s|-)?sell\w*|shorting|derivatives?|perpetuals?|swaps?|python|script|code)\b|\b\d+\s?x\b/i;
 const INJECTION =
   /ignore (all |any |the )?(previous|prior|above)|system prompt|you are now|disregard/i;
 
+const WEIGHTED =
+  /\d{1,3}(?:\.\d+)?\s*%\s*(?:in(?:to)?\s+|of\s+|to\s+)?\$?[a-z][a-z0-9.]{1,15}/gi;
+const BASKET =
+  /\b(split|spread|diversif\w*|basket|portfolio of|allocate (?:across|between|among)|rebalanc\w*)\b/i;
+
+/**
+ * Trade plans are one spot stock per plan. Multi-asset stock baskets belong to the strategy
+ * builder (weights, rebalancing, backtest/paper/live), so the UI hands them over instead
+ * of asking clarifying questions it can never resolve.
+ */
+export function portfolioHint(prompt: string): string | null {
+  const weighted = (prompt.match(WEIGHTED) ?? []).filter(
+    (m) =>
+      !/slippage|profit|loss|drop|rise|gain|portfolio|vault|above|below/i.test(
+        m,
+      ),
+  );
+  if (weighted.length >= 2 || BASKET.test(prompt))
+    return "That’s a multi-asset portfolio. A trade plan handles one stock, so this is built as a strategy with weights and rebalancing that you can backtest, paper trade and deploy.";
+  return null;
+}
+
 export function clarificationOptions(field: string): ClarificationOption[] {
+  if (field === "side")
+    return [
+      { label: "Buy", append: "Buy it." },
+      { label: "Sell", append: "Sell it." },
+    ];
   if (field === "entry")
     return [
-      { label: "At market open", append: "when the market opens" },
+      { label: "Right now", append: "now" },
       {
         label: "Below a specified price",
         append: "if the price falls below",
@@ -142,8 +171,17 @@ export function parseWithRules(prompt: string, now: number): AiResponse {
       reason: "Atlas V1 supports only spot BUY and SELL strategies.",
     };
   const lower = text.toLowerCase();
-  const buyAt = lower.search(/\b(buy|invest|purchase|acquire|accumulate)\b/);
-  const sellAt = lower.search(/\bsell\b/);
+  const buyAt = lower.search(
+    /\b(buy|invest|purchase|acquire|accumulate|put|allocate|deploy|enter|long|dca)\b/,
+  );
+  const sellAt = lower.search(/\b(sell|sel|dump|offload|liquidate)\b/);
+  if (buyAt < 0 && sellAt < 0 && /\bboth\b/.test(lower))
+    return {
+      status: "CLARIFICATION_NEEDED",
+      field: "side",
+      question:
+        "A plan runs one action. To buy and later sell, choose Buy and add the sell as the exit, e.g. “sell at +10% or −10%”.",
+    };
   if (buyAt < 0 && sellAt < 0)
     return {
       status: "CLARIFICATION_NEEDED",
@@ -282,8 +320,47 @@ export function parseWithRules(prompt: string, now: number): AiResponse {
         "Please give an exact UTC time like 2026-11-09T14:30Z; Atlas will not guess a timezone.",
     };
 
+  // Relative timing: "sell 10 seconds after buying" (hold) and "after 30 seconds" (entry delay).
+  const UNIT = "(seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d)";
+  const unitS = (u: string) =>
+    /^d/i.test(u) ? 86400 : /^h/i.test(u) ? 3600 : /^m/i.test(u) ? 60 : 1;
+  const holdRe = new RegExp(
+    `\\b(?:sell|exit|close)\\b[^.]{0,30}?(\\d+(?:\\.\\d+)?)\\s*${UNIT}\\s*(?:after|later|post)\\b[^.,;]{0,25}|\\bhold(?:\\s+it)?(?:\\s+for)?\\s+(\\d+(?:\\.\\d+)?)\\s*${UNIT}\\b`,
+    "i",
+  );
+  const hold = holdRe.exec(text);
+  let holdS: number | undefined;
+  if (hold) {
+    holdS = Math.round(
+      Number(hold[1] ?? hold[3]) * unitS((hold[2] ?? hold[4])!),
+    );
+    text = text.replace(hold[0], " ");
+  }
+  const delay = new RegExp(
+    `\\b(?:after|in|wait(?:ing)?(?:\\s+for)?)\\s+(\\d+(?:\\.\\d+)?)\\s*${UNIT}\\b`,
+    "i",
+  ).exec(text);
+  let entryAt = now;
+  if (delay && side === "BUY") {
+    entryAt = now + Math.round(Number(delay[1]) * unitS(delay[2]!));
+    entry.push({ type: "AFTER_TIME", timestamp: entryAt });
+    text = text.replace(delay[0], " ");
+  }
+  if (
+    side === "BUY" &&
+    !entry.length &&
+    // An explicit "now" wins; otherwise an unparsed condition ("when it looks good") still
+    // needs clarifying, never a guess.
+    (/\b(now|immediately|right away|instantly|asap)\b/i.test(text) ||
+      (marketsAlwaysOpen() &&
+        !/\b(when|whenever|if|once|until|unless)\b/i.test(text)))
+  )
+    entry.push({ type: "MARKET_OPEN" }); // Executes as soon as the plan is active.
+
   // Exits
   const exits: ExitCondition[] = [];
+  if (holdS !== undefined && holdS > 0)
+    exits.push({ type: "TIME_EXIT", timestamp: entryAt + holdS });
   const bps = (v: string) => Number(parseDecimal(v, 2));
   const tp =
     /(\d+(?:\.\d+)?)\s*%\s*(?:profit|gain|return)|(?:take[- ]profit|profit|gain)[^\d%.]{0,25}?(\d+(?:\.\d+)?)\s*%|\+\s*(\d+(?:\.\d+)?)\s*%/i.exec(

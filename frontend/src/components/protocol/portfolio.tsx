@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
 import { api } from "@/lib/api";
+import { AtlasTradesPanel } from "@/components/intent/trades";
 import {
   formatPortfolioAmount as amount,
   portfolioAtTime,
@@ -393,6 +394,7 @@ export function OnchainPortfolio({
           </section>
         </>
       )}
+      <AtlasTradesPanel />
     </div>
   );
 }

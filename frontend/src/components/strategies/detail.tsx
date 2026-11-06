@@ -25,6 +25,7 @@ import {
   MARKET_FLAG,
   PERIODS,
   creatorFee,
+  iconKey as iconKeyOf,
   describeRule,
   performanceFor,
   positionPerformance,
@@ -36,7 +37,9 @@ import {
   type Strategy,
 } from "@/lib/strategies";
 import { StrategyStudio } from "./studio";
+import { IconPicker, StrategyIconBadge } from "./icon";
 import {
+  CreatorName,
   EnsHandle,
   EquityChart,
   MarketChips,
@@ -60,6 +63,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
   const [adhoc, setAdhoc] = useState<Performance | null>(null);
   const [mode, setMode] = useState<RunMode | null>(null);
   const [showJson, setShowJson] = useState(false);
+  const [iconPicker, setIconPicker] = useState(false);
 
   if (!store.loaded) return <DashboardShell>{null}</DashboardShell>;
   if (!s)
@@ -67,8 +71,13 @@ export function StrategyDetailPage({ id }: { id: string }) {
       <DashboardShell>
         <main className="protocol-content">
           <div className="panel protocol-empty">
-            <h2>Strategy not found</h2>
-            <p>It may be private, deleted, or the link is wrong.</p>
+            <h2>
+              {store.error ? "Couldn’t load strategies" : "Strategy not found"}
+            </h2>
+            <p>
+              {store.error ??
+                "It may be private, deleted, or the link is wrong."}
+            </p>
             <Link className="btn secondary small" href="/strategies">
               Back to strategies
             </Link>
@@ -92,11 +101,15 @@ export function StrategyDetailPage({ id }: { id: string }) {
   const current = perf[active];
   const positions = store.positions.filter((p) => p.strategyId === s.id);
 
-  function clone() {
-    const copy = store.clone(s!.id);
-    toast("Cloned to My strategies. Tweak it before deploying.");
-    router.push(`/strategies/${copy.id}?edit=1`);
-    setEditing(true);
+  async function clone() {
+    try {
+      const copy = await store.clone(s!.id);
+      toast("Cloned to My strategies. Tweak it before deploying.");
+      router.push(`/strategies/${copy.id}?edit=1`);
+      setEditing(true);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Could not clone this strategy.");
+    }
   }
 
   if (editing && owner)
@@ -116,9 +129,19 @@ export function StrategyDetailPage({ id }: { id: string }) {
               </span>
               <h1>Refine with Atlas AI</h1>
               <p>
-                {s.forkedFrom
-                  ? `Cloned from “${s.forkedFrom.name}”. Tweak the prompt, weights or rules — ${s.originalCreator.name} still earns ${CREATOR_FEE_BPS / 100}% when you deploy.`
-                  : "Changing the allocation or rules resets the backtest and paper track record."}
+                {s.forkedFrom ? (
+                  <>
+                    Cloned from “{s.forkedFrom.name}”. Tweak the prompt, weights
+                    or rules —{" "}
+                    <CreatorName
+                      name={s.originalCreator.name}
+                      address={s.originalCreator.address}
+                    />{" "}
+                    still earns {CREATOR_FEE_BPS / 100}% when you deploy.
+                  </>
+                ) : (
+                  "Changing the allocation or rules resets the backtest and paper track record."
+                )}
               </p>
             </div>
           </div>
@@ -127,13 +150,20 @@ export function StrategyDetailPage({ id }: { id: string }) {
             showVisibility={false}
             submitLabel="Save changes"
             onCancel={() => setEditing(false)}
-            onSubmit={(v) => {
-              store.update(s.id, {
-                name: v.name,
-                tagline: v.tagline,
-                prompt: v.prompt,
-                spec: v.spec,
-              });
+            onSubmit={async (v) => {
+              try {
+                await store.update(s.id, {
+                  name: v.name,
+                  tagline: v.tagline,
+                  prompt: v.prompt,
+                  spec: v.spec,
+                  ...(v.icon ? { icon: v.icon } : {}),
+                });
+              } catch (e) {
+                return toast(
+                  e instanceof Error ? e.message : "Could not save changes.",
+                );
+              }
               setEditing(false);
               setAdhoc(null);
               toast("Strategy updated.");
@@ -161,13 +191,53 @@ export function StrategyDetailPage({ id }: { id: string }) {
               {s.spec.rebalance.frequency.toUpperCase()} REBALANCE ·{" "}
               {s.spec.universe.length} ASSETS
             </span>
-            <h1>{s.name}</h1>
+            <div className="strategy-title-row">
+              {owner ? (
+                <button
+                  type="button"
+                  className="strategy-icon-edit"
+                  aria-label="Change strategy icon"
+                  aria-expanded={iconPicker}
+                  title="Change icon"
+                  onClick={() => setIconPicker(!iconPicker)}
+                >
+                  <StrategyIconBadge icon={s.icon} size={60} />
+                  <Pencil size={12} />
+                </button>
+              ) : (
+                <StrategyIconBadge icon={s.icon} size={60} />
+              )}
+              <h1>{s.name}</h1>
+            </div>
+            {owner && iconPicker && (
+              <IconPicker
+                value={s.icon}
+                taken={
+                  new Set(
+                    store.strategies
+                      .filter((x) => x.id !== s.id)
+                      .map((x) => iconKeyOf(x.icon)),
+                  )
+                }
+                onChange={(icon) => {
+                  store.update(s.id, { icon }).then(
+                    () => toast("Icon updated."),
+                    (e: Error) => toast(e.message),
+                  );
+                }}
+              />
+            )}
             <p>{s.tagline}</p>
             <div className="strategy-byline">
               <EnsHandle ens={s.ens} />
               <VisibilityBadge visibility={s.visibility} />
               <span>
-                by <strong>{owner ? "you" : s.creator.name}</strong>
+                by{" "}
+                <CreatorName
+                  name={s.creator.name}
+                  address={s.creator.address}
+                  you={owner}
+                />
               </span>
               {s.forkedFrom && (
                 <Link href={`/strategies/${s.forkedFrom.id}`}>
@@ -194,11 +264,14 @@ export function StrategyDetailPage({ id }: { id: string }) {
                   onClick={() => {
                     const next =
                       s.visibility === "public" ? "private" : "public";
-                    store.setVisibility(s.id, next);
-                    toast(
-                      next === "public"
-                        ? `Published. Others can now clone and deploy it — you earn ${CREATOR_FEE_BPS / 100}% of their deployments.`
-                        : "Strategy is private again. Existing deployments by others keep running.",
+                    store.setVisibility(s.id, next).then(
+                      () =>
+                        toast(
+                          next === "public"
+                            ? `Published. Others can now clone and deploy it — you earn ${CREATOR_FEE_BPS / 100}% of their deployments.`
+                            : "Strategy is private again. Existing deployments by others keep running.",
+                        ),
+                      (e: Error) => toast(e.message),
                     );
                   }}
                 >
@@ -217,9 +290,13 @@ export function StrategyDetailPage({ id }: { id: string }) {
                       return toast(
                         "Others have deployed this strategy — make it private instead of deleting.",
                       );
-                    store.remove(s.id);
-                    toast("Strategy deleted.");
-                    router.push("/strategies/mine");
+                    store.remove(s.id).then(
+                      () => {
+                        toast("Strategy deleted.");
+                        router.push("/strategies/mine");
+                      },
+                      (e: Error) => toast(e.message),
+                    );
                   }}
                 >
                   <Trash2 size={14} />
@@ -367,11 +444,14 @@ export function StrategyDetailPage({ id }: { id: string }) {
                             <button
                               className="text-button"
                               onClick={() => {
-                                store.stop(p.id);
-                                toast(
-                                  p.mode === "live"
-                                    ? "Withdrawal queued (demo) — funds return to your vault balance."
-                                    : "Paper trade stopped.",
+                                store.stop(p.id).then(
+                                  () =>
+                                    toast(
+                                      p.mode === "live"
+                                        ? "Withdrawal queued (demo) — funds return to your vault balance."
+                                        : "Paper trade stopped.",
+                                    ),
+                                  (e: Error) => toast(e.message),
                                 );
                               }}
                             >
@@ -517,11 +597,11 @@ export function StrategyDetailPage({ id }: { id: string }) {
               <p>
                 Whenever someone deploys real funds into this strategy — or any
                 clone of it —{" "}
-                <strong>
-                  {sameAddress(s.originalCreator.address, wallet?.address)
-                    ? "you"
-                    : s.originalCreator.name}
-                </strong>{" "}
+                <CreatorName
+                  name={s.originalCreator.name}
+                  address={s.originalCreator.address}
+                  you={sameAddress(s.originalCreator.address, wallet?.address)}
+                />{" "}
                 receive
                 {sameAddress(s.originalCreator.address, wallet?.address)
                   ? ""
@@ -633,11 +713,27 @@ function RunPanel({
         ))}
       </div>
       <p>
-        {tab === "backtest"
-          ? "Replay the strategy over the last year of prices to see 3M, 6M and 1Y returns, drawdown and Sharpe."
-          : tab === "paper"
-            ? "Run the strategy forward with virtual aUSDT. Nothing is bought, but trades and returns are tracked live."
-            : `Buy the real assets with aUSDT from your Atlas Vault. ${feeApplies ? `${CREATOR_FEE_BPS / 100}% goes to ${s.originalCreator.name}, the original creator.` : "You are the original creator, so no creator fee applies."}`}
+        {tab === "backtest" ? (
+          "Replay the strategy over the last year of prices to see 3M, 6M and 1Y returns, drawdown and Sharpe."
+        ) : tab === "paper" ? (
+          "Run the strategy forward with virtual aUSDT. Nothing is bought, but trades and returns are tracked live."
+        ) : (
+          <>
+            Buy the real assets with aUSDT from your Atlas Vault.{" "}
+            {feeApplies ? (
+              <>
+                {CREATOR_FEE_BPS / 100}% goes to{" "}
+                <CreatorName
+                  name={s.originalCreator.name}
+                  address={s.originalCreator.address}
+                />
+                , the original creator.
+              </>
+            ) : (
+              "You are the original creator, so no creator fee applies."
+            )}
+          </>
+        )}
       </p>
       <form
         onSubmit={(e) => {
@@ -671,7 +767,17 @@ function RunPanel({
               <dd>{usd(value)} aUSDT</dd>
               <dt>Creator fee ({CREATOR_FEE_BPS / 100}%)</dt>
               <dd>
-                {fee ? `${usd(fee, 4)} → ${s.originalCreator.name}` : "None"}
+                {fee ? (
+                  <>
+                    {usd(fee, 4)} →{" "}
+                    <CreatorName
+                      name={s.originalCreator.name}
+                      address={s.originalCreator.address}
+                    />
+                  </>
+                ) : (
+                  "None"
+                )}
               </dd>
               <dt>Invested</dt>
               <dd>{usd(net)} aUSDT</dd>

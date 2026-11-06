@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { AtlasProvider } from "@/components/atlas/provider";
 import { WalletModal } from "@/components/wallet/wallet-modal";
+import { THEME_BOOT_SCRIPT } from "@/lib/theme";
 import "./globals.css";
+import "./theme-light.generated.css";
+import "./theme-light.css";
 export const metadata: Metadata = {
   title: "Atlas — Global Markets. One Wallet.",
   description:
@@ -13,7 +16,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body>
         <AtlasProvider>
           {children}
