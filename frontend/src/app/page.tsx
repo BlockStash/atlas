@@ -1,19 +1,14 @@
 "use client";
-import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
   ArrowUpRight,
-  Check,
   ChevronRight,
   Fingerprint,
   Globe2,
   Layers3,
-  LockKeyhole,
-  Menu,
   ShieldCheck,
   Wallet,
-  X,
 } from "lucide-react";
 import {
   AtlasLogo,
@@ -26,46 +21,11 @@ import { useAtlas } from "@/components/atlas/provider";
 import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
 export default function Landing() {
   const { setModal } = useAtlas();
-  const [mobile, setMobile] = useState(false),
-    [info, setInfo] = useState<"security" | "about" | null>(null);
-  useEffect(() => {
-    if (info)
-      document
-        .getElementById("atlas-info")
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [info]);
   return (
     <main className="landing">
       <div className="landing-grid" />
       <header className="landing-nav">
         <AtlasLogo />
-        <nav className={mobile ? "open" : ""}>
-          <a className="active" href="#home" onClick={() => setMobile(false)}>
-            Home
-          </a>
-          <a href="#markets" onClick={() => setMobile(false)}>
-            Markets
-          </a>
-          <a href="#how-it-works" onClick={() => setMobile(false)}>
-            How it works
-          </a>
-          <button
-            onClick={() => {
-              setInfo(info === "security" ? null : "security");
-              setMobile(false);
-            }}
-          >
-            Security
-          </button>
-          <button
-            onClick={() => {
-              setInfo(info === "about" ? null : "about");
-              setMobile(false);
-            }}
-          >
-            About
-          </button>
-        </nav>
         <div className="nav-actions">
           <span className="theme-switches">
             <SkinToggle />
@@ -78,13 +38,6 @@ export default function Landing() {
           <button className="btn primary small" onClick={() => setModal(true)}>
             <Wallet size={15} />
             Connect Wallet
-          </button>
-          <button
-            className="mobile-menu"
-            aria-label="Toggle navigation"
-            onClick={() => setMobile(!mobile)}
-          >
-            {mobile ? <X /> : <Menu />}
           </button>
         </div>
       </header>
@@ -209,42 +162,6 @@ export default function Landing() {
           </button>
         ))}
       </section>
-      {info && (
-        <section className="info-panel" id="atlas-info">
-          <button aria-label="Close information" onClick={() => setInfo(null)}>
-            <X size={18} />
-          </button>
-          {info === "security" ? (
-            <>
-              <ShieldCheck />
-              <h2>Built around your control.</h2>
-              <p>
-                Atlas never has access to your wallet private keys. Wallet
-                authentication uses a signed message, and World ID is designed
-                to verify unique humanity with minimal data sharing. This
-                investor demo uses simulated assets and does not execute trades.
-              </p>
-              <span>
-                <Check size={15} />
-                Non-custodial connection <Check size={15} />
-                Privacy-first identity <LockKeyhole size={15} />
-                Secure sessions
-              </span>
-            </>
-          ) : (
-            <>
-              <Globe2 />
-              <h2>One Wallet. Five Markets. One Global Portfolio.</h2>
-              <p>
-                Atlas is a crypto-native global investment concept connecting
-                India, the United States, the United Kingdom, Singapore, and
-                Europe. Explore a personalized investor demonstration with USDT
-                and ATLAS settlement preferences.
-              </p>
-            </>
-          )}
-        </section>
-      )}
       <footer className="landing-footer">
         <span>
           © {new Date().getFullYear()} Atlas. A world without borders.
