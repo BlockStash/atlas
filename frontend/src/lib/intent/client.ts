@@ -116,6 +116,13 @@ export interface GrantedPermission {
   delegationManager: string;
   allowanceShares: string;
 }
+export interface AssetSelection {
+  note: string;
+  symbol: string;
+  priceUSDT: number;
+  rank: "highest" | "lowest";
+  capUSDT: number | null;
+}
 export type ParseResult =
   | {
       status: "OK";
@@ -123,6 +130,8 @@ export type ParseResult =
       parser: string;
       evaluation: Evaluation;
       parseHash: string;
+      /** Set when Atlas picked the asset from a price rule ("highest-priced stock within 1000 USDT"). */
+      selection?: AssetSelection;
     }
   | {
       status: "CLARIFICATION_NEEDED";

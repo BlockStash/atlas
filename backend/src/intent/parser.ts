@@ -46,7 +46,7 @@ RULES (non-negotiable):
 - If a required detail is missing or vague (e.g. "when it looks good"), output {"status":"CLARIFICATION_NEEDED","question":"...","field":"entry|allocation|asset|side|exit"}. Do not guess.
 - Current unix time: ${now}. Use it only to turn relative times into absolute unix seconds.
 - Atlas markets are open 24/7. "Now", "immediately" or no entry timing means [{"type":"MARKET_OPEN"}] (executes right away).
-- Relative entry like "after 30 seconds" or "in 5 minutes" is AFTER_TIME = now + delay. A hold like "sell 10 seconds after buying" is TIME_EXIT with holdSeconds = the hold in seconds and timestamp = entry time + hold.
+- Relative entry like "after 30 seconds" or "in 5 minutes" is AFTER_TIME = now + delay. A hold like "sell 10 seconds after buying" or "buy X and sell it after 30 seconds" is TIME_EXIT with holdSeconds = the hold in seconds and timestamp = entry time + hold.
 
 SCHEMA:
 {"status":"OK","intent":{
@@ -335,6 +335,17 @@ export function parseWithRules(prompt: string, now: number): AiResponse {
       Number(hold[1] ?? hold[3]) * unitS((hold[2] ?? hold[4])!),
     );
     text = text.replace(hold[0], " ");
+  } else if (side === "BUY") {
+    // "buy … and sell it after 30 sec": in a buy plan, a sell after a delay is a hold, not an
+    // entry delay.
+    const sellAfter = new RegExp(
+      `\\b(?:sell|exit|close)\\b(?:\\s+(?:it|them|the\\s+position|the\\s+shares?|everything|all))?\\s+(?:after|in)\\s+(\\d+(?:\\.\\d+)?)\\s*${UNIT}\\b`,
+      "i",
+    ).exec(text);
+    if (sellAfter) {
+      holdS = Math.round(Number(sellAfter[1]) * unitS(sellAfter[2]!));
+      text = text.replace(sellAfter[0], " ");
+    }
   }
   const delay = new RegExp(
     `\\b(?:after|in|wait(?:ing)?(?:\\s+for)?)\\s+(\\d+(?:\\.\\d+)?)\\s*${UNIT}\\b`,

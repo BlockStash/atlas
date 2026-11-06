@@ -373,6 +373,7 @@ export function StrategyStudio({
           ? `Rebuilt the plan: ${summary}`
           : `${summary} I built it as an executable Atlas AI strategy named “${nameTouched ? name : suggested}”.`,
         bullets: [
+          ...(r.selection ? [r.selection.note] : []),
           `${intent.asset.companyName} (${intent.asset.symbol}) · ${intent.asset.market}`,
           ...(intent.metadata.defaultsApplied.length
             ? [

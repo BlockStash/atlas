@@ -12,6 +12,12 @@ import {
 import type { IntentRepository, IntentRow } from "./repository.js";
 import { parseIntent, type ModelClient, type ParseOutcome } from "./parser.js";
 import { validateIntent } from "./validator.js";
+import {
+  detectRank,
+  selectByPrice,
+  type SelectionResult,
+} from "./selection.js";
+import { assets } from "./assets.js";
 import { simulateIntent } from "./simulation.js";
 import type { RiskLimits } from "./risk.js";
 import {
@@ -31,6 +37,7 @@ import type {
   MarketSource,
   PriceSource,
 } from "./adapters.js";
+import type { PriceQuote } from "./types.js";
 import { DemoPriceSource, CalendarMarketSource } from "./adapters.js";
 import type { OnchainExecutor } from "./onchain.js";
 
@@ -127,6 +134,27 @@ export class IntentService {
     });
     if (outcome.status !== "OK") return outcome;
     return { ...outcome, evaluation: await this.evaluate(outcome.intent) };
+  }
+
+  /**
+   * Resolves price-ranked asset rules ("the highest-priced stock within 1000 USDT") against live
+   * quotes, before the parser runs. The model never chooses assets.
+   */
+  async selectAsset(prompt: string): Promise<SelectionResult> {
+    if (!detectRank(prompt)) return { status: "NONE" };
+    const now = this.ctx.now();
+    const quotes = new Map<string, PriceQuote>();
+    await Promise.all(
+      assets
+        .filter((a) => a.active)
+        .map(async (a) => {
+          const q = await this.ctx.prices
+            .quote(a.stockId, now)
+            .catch(() => null);
+          if (q) quotes.set(a.stockId, q);
+        }),
+    );
+    return selectByPrice(prompt, quotes);
   }
 
   /** Validation + risk + simulation, all deterministic. Safe to call repeatedly. */

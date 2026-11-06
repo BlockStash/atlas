@@ -230,6 +230,7 @@ export function NewIntentPage() {
             r.evaluation?.summary ??
             `Here’s your ${r.intent.side.toLowerCase()} plan for ${r.intent.asset.companyName}.`,
           bullets: [
+            ...(r.selection ? [r.selection.note] : []),
             `${r.intent.asset.companyName} (${r.intent.asset.symbol}) · ${r.intent.asset.market}`,
             ...(r.intent.metadata.defaultsApplied.length
               ? [
@@ -482,15 +483,22 @@ export function NewIntentPage() {
                 </div>
               )}
             </div>
-            {!draft && !portfolioId && !clarifying && messages.every((m) => m.role !== "user") && (
-              <div className="studio-suggest">
-                {EXAMPLES.map((e) => (
-                  <button key={e} disabled={busy} onClick={() => void send(e)}>
-                    {e}
-                  </button>
-                ))}
-              </div>
-            )}
+            {!draft &&
+              !portfolioId &&
+              !clarifying &&
+              messages.every((m) => m.role !== "user") && (
+                <div className="studio-suggest">
+                  {EXAMPLES.map((e) => (
+                    <button
+                      key={e}
+                      disabled={busy}
+                      onClick={() => void send(e)}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
             <form
               className="studio-composer"
               onSubmit={(e) => {

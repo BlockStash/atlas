@@ -82,14 +82,38 @@ export function intentRouter() {
       });
       return;
     }
-    const hint = portfolioHint(prompt);
+    // "Highest-priced stock within 1000 USDT": Atlas picks the asset from live quotes first.
+    const picked = await ctx(res).service.selectAsset(prompt);
+    if (picked.status === "NO_MATCH") {
+      res.json({
+        status: "CLARIFICATION_NEEDED",
+        question: `${picked.reason} Which stock should Atlas trade?`,
+        field: "asset",
+        options: [],
+      });
+      return;
+    }
+    const selection = picked.status === "SELECTED" ? picked.selection : null;
+    const instruction = selection?.prompt ?? prompt;
+    const hint = portfolioHint(instruction);
     if (hint) {
       res.json({ status: "PORTFOLIO_STRATEGY", reason: hint });
       return;
     }
-    const out = await ctx(res).service.parse(prompt, user(res));
+    const out = await ctx(res).service.parse(instruction, user(res));
     res.json({
       ...out,
+      ...(selection
+        ? {
+            selection: {
+              note: selection.note,
+              symbol: selection.asset.symbol,
+              priceUSDT: selection.priceUSDT,
+              rank: selection.rank,
+              capUSDT: selection.capUSDT,
+            },
+          }
+        : {}),
       parseHash:
         out.status === "OK"
           ? strategyHash(strategyBody(out.intent))
