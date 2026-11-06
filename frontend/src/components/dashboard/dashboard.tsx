@@ -20,6 +20,7 @@ import { MarketStocks } from "@/components/protocol/market-stocks";
 import {
   useStockSessions,
   regionMarketState,
+  regionAtlasOpen,
 } from "@/lib/protocol/stock-sessions";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
@@ -294,7 +295,9 @@ export function Dashboard({
                 </Link>
               ) : (
                 <span className="demo-badge">
-                  EXCHANGE STATUS · TWELVE DATA
+                  {sessions.developmentMarkets
+                    ? "ATLAS DEVELOPMENT MARKETS"
+                    : "EXCHANGE STATUS · TWELVE DATA"}
                 </span>
               )}
             </div>
@@ -304,6 +307,13 @@ export function Dashboard({
                   key={m.id}
                   market={m}
                   marketState={regionMarketState(sessions.stocks, m.id)}
+                  developmentOpen={
+                    sessions.developmentMarkets &&
+                    regionAtlasOpen(sessions.stocks, m.id)
+                  }
+                  developmentMode={
+                    sessions.developmentMarkets && m.id !== "crypto"
+                  }
                   selected={state.selectedMarkets.includes(m.id)}
                   onClick={() => openMarket(m.id)}
                 />

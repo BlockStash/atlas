@@ -13,6 +13,7 @@ import {
   type CountryManifest,
 } from "./country-catalog.js";
 import abis from "./abis.json" with { type: "json" };
+import { historicalDevelopmentMode } from "./historical-development.js";
 export type PortfolioPosition = {
   stockId: string;
   countryContract: string;
@@ -31,6 +32,7 @@ export type PortfolioPosition = {
 };
 export type PortfolioSnapshot = {
   source: "sepolia";
+  pricingMode?: "historical-development" | "live";
   address: string;
   chainId: number;
   blockNumber: number;
@@ -298,7 +300,7 @@ export function createPortfolioReader(
         process.env.PROTOCOL_RPC_URL ||
           "https://ethereum-sepolia-rpc.publicnode.com",
         undefined,
-        { cacheTimeout: -1 },
+        { cacheTimeout: -1, batchMaxCount: 1 },
       );
       try {
         const chain: PortfolioChain = {
@@ -323,7 +325,13 @@ export function createPortfolioReader(
         };
         const snapshot = await collectPortfolio(manifest, address, chain);
         history ??= new PortfolioHistory(historyFile);
-        return { ...snapshot, history: history.record(snapshot) };
+        return {
+          ...snapshot,
+          pricingMode: historicalDevelopmentMode()
+            ? ("historical-development" as const)
+            : ("live" as const),
+          history: history.record(snapshot),
+        };
       } catch (error) {
         if (error instanceof PortfolioReadError) throw error;
         throw new PortfolioReadError(

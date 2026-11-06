@@ -3,6 +3,9 @@ import {
   sessionAmount,
   type StockSession,
 } from "@/lib/protocol/stock-sessions";
+import { formatUnits } from "viem";
+export const sharesAmount = (value: string | bigint) =>
+  `${Number(formatUnits(BigInt(value), 12)).toLocaleString("en-US", { maximumFractionDigits: 6 })} aUSDT`;
 export function ExchangeStatus({
   market,
 }: {
@@ -31,12 +34,26 @@ export function SessionReference({ session }: { session?: StockSession }) {
     <div className="stock-session-reference">
       <div>
         <span>Recorded close</span>
-        <strong>{sessionAmount(session.sessionClose, session.currency)}</strong>
+        <strong>
+          {session.valuation
+            ? sharesAmount(session.valuation.close.priceAUSDT)
+            : sessionAmount(session.sessionClose, session.currency)}
+        </strong>
+        {session.valuation && (
+          <small>{sessionAmount(session.sessionClose, session.currency)}</small>
+        )}
         <small>{session.sessionDate}</small>
       </div>
       <div>
         <span>Opening price</span>
-        <strong>{sessionAmount(session.sessionOpen, session.currency)}</strong>
+        <strong>
+          {session.valuation
+            ? sharesAmount(session.valuation.open.priceAUSDT)
+            : sessionAmount(session.sessionOpen, session.currency)}
+        </strong>
+        {session.valuation && (
+          <small>{sessionAmount(session.sessionOpen, session.currency)}</small>
+        )}
         <small>{session.sessionDate}</small>
       </div>
       <a href={session.sourceUrl} target="_blank" rel="noreferrer">
@@ -46,6 +63,19 @@ export function SessionReference({ session }: { session?: StockSession }) {
         Historical reference
         {session.sourceUnit === "GBX" ? " · pence converted to GBP" : ""}
       </small>
+      {session.valuation && (
+        <small>
+          aUSDT conversion: vault block {session.valuation.vaultBlock} ·{" "}
+          <a
+            href={session.valuation.fxSourceUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            FX {session.valuation.fxDate}
+          </a>{" "}
+          · before fees
+        </small>
+      )}
     </div>
   );
 }

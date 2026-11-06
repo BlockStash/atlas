@@ -138,3 +138,9 @@ The dashboard, My portfolio and Wallet pages use authenticated `/api/portfolio` 
 All balances and quotes in a snapshot use one block. The page refreshes every 20 seconds, on window focus and after confirmed protocol transactions. The server uses a short wallet/deployment-scoped cache. If a quote expires or a stock is disabled, the quantity remains visible and the current stock/total valuation is marked unavailable. RPC failures show an error rather than fabricating zero balances.
 
 Historical account-value observations are stored in `backend/data/portfolio-history.sqlite` (override with `PORTFOLIO_HISTORY_FILE`). History starts with actual observations; old performance is not reconstructed or invented. Charts include deposits and transfers and are not investment-return calculations. World ID/passkey identity profiles remain in Arkiv.
+
+## Development Paper Trading simulator
+
+Open **http://127.0.0.1:3000/paper** while `npm run dev` is running. The simulator has a separate paper balance, seeded synthetic markets, uploaded tick/OHLC replay, clock controls and explicitly confirmed natural-language strategies. It never submits contract transactions. No LLM API key is required.
+
+Run `npm run paper:demo` for reproducible successful-entry/exit, slippage-expiry and identical-replay demonstrations. See [the simulator guide](backend/src/paper/README.md) for UI steps, data formats, fill assumptions, supported saved-strategy rules and the OpenAI/Claude integration audit.

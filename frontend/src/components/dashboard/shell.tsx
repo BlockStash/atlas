@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell,
+  Bot,
   ChevronDown,
   Globe2,
   LayoutDashboard,
@@ -33,11 +34,14 @@ const links = [
   { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/vault", label: "Atlas Vault", Icon: Landmark },
   { href: "/trade", label: "Synthetic stocks", Icon: ChartCandlestick },
+  { href: "/intent", label: "AI intent trading", Icon: Bot },
+  { href: "/paper", label: "Paper Trading", Icon: ChartCandlestick },
   { href: "/strategies", label: "Explore strategies", Icon: Compass },
   { href: "/strategies/mine", label: "My strategies", Icon: Layers },
 ];
 /** Personal strategy routes highlight "My strategies"; other /strategies/* pages highlight Explore. */
 const isActive = (href: string, path: string) => {
+  if (href === "/intent") return path === href || path.startsWith("/intent/");
   if (href === "/strategies/mine")
     return path === href || path === "/strategies/new";
   if (href === "/strategies")

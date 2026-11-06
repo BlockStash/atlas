@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { ArkivProfileStore, UnavailableProfileStore } from "./arkiv-store.js";
 import type { ProfileRepository } from "./profile-repository.js";
 import { createApp } from "./app.js";
+import { createPortfolioReader } from "./protocol/portfolio.js";
+import { createIntentEngine } from "./intent/wiring.js";
 const production = process.env.NODE_ENV === "production";
 const port = Number(process.env.PORT ?? 4000);
 let store: ProfileRepository | undefined;
@@ -30,7 +32,13 @@ if (process.env.PROFILE_STORE === "arkiv") {
     );
   }
 }
+const portfolioRead = createPortfolioReader();
+const intents = createIntentEngine({ production, portfolioRead });
+if (process.env.INTENT_WORKER_ENABLED !== "false")
+  intents.worker.start(Number(process.env.INTENT_WORKER_INTERVAL_MS || 5000));
 const app = createApp({
+  intents,
+  portfolioRead,
   store,
   dataFile: resolve(process.env.DATA_FILE ?? "data/profiles.json"),
   frontendOrigin: process.env.FRONTEND_ORIGIN ?? "http://127.0.0.1:3000",

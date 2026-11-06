@@ -1,9 +1,15 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "rootDir": ".", "noEmit": true },
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
   "include": [
+    "scripts/refresh-historical-prices.ts",
+    "scripts/development-markets.ts",
     "scripts/arkiv-check.ts",
     "scripts/update-country-prices.ts",
-    "scripts/stream-market-prices.ts"
+    "scripts/stream-market-prices.ts",
+    "scripts/paper-demo.ts"
   ]
 }

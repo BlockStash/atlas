@@ -168,6 +168,12 @@ export function OnchainPortfolio({
         </section>
       ) : (
         <>
+          {portfolio.pricingMode === "historical-development" && (
+            <p className="session-reference-note">
+              Development valuation uses fixed historical stock prices. Wallet
+              balances and stock quantities are read from Sepolia.
+            </p>
+          )}
           <div
             className={
               view === "portfolio" ? "summary-grid" : "onchain-wallet-summary"

@@ -16,6 +16,17 @@ export type StockSession = {
   source: string;
   sourceUrl: string;
   sourceAsOf: string;
+  atlasMarket: { region: string; open: boolean; validUntil: number } | null;
+  valuation: {
+    close: { priceUSDT: string; priceAUSDT: string };
+    open: { priceUSDT: string; priceAUSDT: string };
+    fxDate: string;
+    fxSource: string;
+    fxSourceUrl: string;
+    usdtTimestamp: number;
+    vaultBlock: number;
+    indicative: true;
+  } | null;
   market: {
     state: "open" | "closed" | "unknown";
     observedAt: number | null;
@@ -29,16 +40,32 @@ export function useStockSessions() {
   const [retrievedAt, setRetrievedAt] = useState("");
   const [error, setError] = useState("");
   const [clock, setClock] = useState(0);
+  const [developmentMarkets, setDevelopmentMarkets] = useState(false);
+  const [historicalDevelopmentPrices, setHistoricalDevelopmentPrices] =
+    useState(false);
+  const [vault, setVault] = useState<{
+    assetsPerShare: string;
+    totalAssets: string;
+    totalShares: string;
+    blockNumber: number;
+  } | null>(null);
   useEffect(() => {
     let active = true;
     const load = () =>
-      api<{ stocks: StockSession[]; retrievedAt: string }>(
-        "/protocol/stock-sessions",
-      )
+      api<{
+        stocks: StockSession[];
+        retrievedAt: string;
+        developmentMarkets: boolean;
+        historicalDevelopmentPrices: boolean;
+        vault: typeof vault;
+      }>("/protocol/stock-sessions")
         .then((data) => {
           if (active) {
             setStocks(data.stocks);
             setRetrievedAt(data.retrievedAt);
+            setDevelopmentMarkets(data.developmentMarkets);
+            setHistoricalDevelopmentPrices(data.historicalDevelopmentPrices);
+            setVault(data.vault);
             setError("");
             setClock(Math.floor(Date.now() / 1000));
           }
@@ -61,12 +88,25 @@ export function useStockSessions() {
   return {
     retrievedAt,
     error,
-    stocks: stocks.map((s) =>
-      s.market.validUntil <= clock
-        ? { ...s, market: { ...s.market, state: "unknown" as const } }
-        : s,
-    ),
+    developmentMarkets,
+    historicalDevelopmentPrices,
+    vault,
+    stocks: stocks.map((s) => ({
+      ...s,
+      atlasMarket:
+        s.atlasMarket && s.atlasMarket.validUntil <= clock
+          ? { ...s.atlasMarket, open: false }
+          : s.atlasMarket,
+      market:
+        s.market.validUntil <= clock
+          ? { ...s.market, state: "unknown" as const }
+          : s.market,
+    })),
   };
+}
+export function regionAtlasOpen(stocks: StockSession[], region: string) {
+  const rows = stocks.filter((s) => s.region === region);
+  return rows.length > 0 && rows.every((s) => s.atlasMarket?.open === true);
 }
 export const sessionAmount = (value: string, currency: string) =>
   `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 4 })} ${currency}`;

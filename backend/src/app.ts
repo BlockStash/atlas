@@ -1,4 +1,8 @@
+import { paperRouter } from "./paper/router.js";
 import { protocolRouter } from "./protocol/router.js";
+import { intentRouter } from "./intent/router.js";
+import { IntentError } from "./intent/types.js";
+import { createIntentEngine, type IntentEngine } from "./intent/wiring.js";
 import express, { type RequestHandler } from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -50,6 +54,8 @@ export interface AppOptions {
   ensResolve?: (name: string) => Promise<string | null>;
   passkeyRpId?: string;
   portfolioRead?: (address: string) => Promise<PortfolioSnapshot>;
+  /** Inject an intent engine (tests). Defaults to a lazily created env-configured engine. */
+  intents?: IntentEngine;
 }
 const addressSchema = z
   .string()
@@ -113,6 +119,7 @@ export function createApp(options: AppOptions) {
   app.disable("x-powered-by");
   app.use(helmet());
   app.use(cors({ origin: options.frontendOrigin, credentials: true }));
+  app.use("/api/paper", express.json({ limit: "2mb" }));
   app.use(express.json({ limit: "24kb" }));
   app.use(cookieParser());
   app.use((req, res, next) => {
@@ -578,6 +585,23 @@ export function createApp(options: AppOptions) {
     }
   });
   app.use("/api/protocol", protocolRouter());
+  app.use("/api/paper", authenticated, paperRouter(options.production));
+  let engine = options.intents;
+  app.use(
+    "/api/intents",
+    authenticated,
+    limit,
+    (_req, res, next) => {
+      engine ??= createIntentEngine({
+        production: options.production,
+        portfolioRead: readPortfolio,
+        now,
+      });
+      res.locals.engine = engine;
+      next();
+    },
+    intentRouter(),
+  );
   app.use((_req, res) =>
     fail(res, 404, "NOT_FOUND", "This Atlas endpoint does not exist."),
   );
@@ -594,6 +618,16 @@ export function createApp(options: AppOptions) {
         "INVALID_REQUEST",
         "Please check the values and try again.",
       );
+      return;
+    }
+    if (error instanceof IntentError) {
+      res.status(error.status).json({
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+      });
       return;
     }
     if (error instanceof VerificationError) {

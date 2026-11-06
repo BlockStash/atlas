@@ -21,6 +21,7 @@ export type PortfolioPoint = {
 };
 export type PortfolioSnapshot = {
   source: "sepolia";
+  pricingMode?: "historical-development" | "live";
   address: string;
   chainId: number;
   blockNumber: number;

@@ -15,7 +15,11 @@ import {
 import { fmt } from "./shared";
 import { useReferencePrices } from "@/lib/protocol/reference-prices";
 import { useStockSessions } from "@/lib/protocol/stock-sessions";
-import { ExchangeStatus, SessionReference } from "./session-reference";
+import {
+  ExchangeStatus,
+  SessionReference,
+  sharesAmount,
+} from "./session-reference";
 
 export function MarketStocks({
   region,
@@ -49,7 +53,11 @@ export function MarketStocks({
         if (!country)
           throw new Error("This country has no configured stock market.");
         const rows = await countryStocks(
-          { countries: [country], tradingEngine: config.tradingEngine },
+          {
+            countries: [country],
+            tradingEngine: config.tradingEngine,
+            atlasVault: config.atlasVault,
+          },
           account ? getAddress(account) : zeroAddress,
         );
         if (active) {
@@ -120,7 +128,10 @@ export function MarketStocks({
               (r) => r.stockId === stock.stockId,
             );
             const fresh =
-              stock.active && stock.price !== null && stock.validUntil > clock;
+              stock.active &&
+              stock.price !== null &&
+              stock.priceShares !== null &&
+              stock.validUntil > clock;
             const params = new URLSearchParams({
               market: region,
               stock: stock.stockId,
@@ -135,23 +146,36 @@ export function MarketStocks({
                       {stock.exchange} · {stock.nativeCurrency}
                     </small>
                     <ExchangeStatus market={session?.market} />
+                    {sessions.developmentMarkets && (
+                      <small>
+                        {session?.atlasMarket?.open
+                          ? "Atlas open · development"
+                          : "Atlas market not open"}
+                      </small>
+                    )}
                   </div>
                   <div className="market-stock-value">
                     <strong>
-                      {fresh
-                        ? `${fmt(stock.price!, 8, 4)} USDT`
-                        : reference
-                          ? `${fmt(BigInt(reference.priceUSDT), 8, 4)} USDT`
-                          : "Price unavailable"}
+                      {fresh && stock.priceShares !== null
+                        ? sharesAmount(stock.priceShares)
+                        : reference?.priceAUSDT
+                          ? sharesAmount(reference.priceAUSDT)
+                          : session?.valuation
+                            ? sharesAmount(session.valuation.close.priceAUSDT)
+                            : "aUSDT price unavailable"}
                     </strong>
                     <small className={fresh ? "positive" : "muted"}>
                       {!stock.active
                         ? "Disabled"
                         : fresh
-                          ? "Quote available"
+                          ? sessions.historicalDevelopmentPrices
+                            ? "Development price · historical snapshot"
+                            : "Quote available"
                           : reference
                             ? "Provider reference · onchain quote expired"
-                            : "Needs a fresh quote"}
+                            : session?.valuation
+                              ? "Historical reference · needs a fresh quote"
+                              : "Needs a fresh quote"}
                     </small>
                     {!fresh && reference && (
                       <small>
@@ -174,10 +198,18 @@ export function MarketStocks({
         </ul>
       )}
       <p className="market-stocks-note">
+        {sessions.vault && (
+          <>
+            1 aUSDT ≈ {fmt(BigInt(sessions.vault.assetsPerShare), 6, 6)} USDT at
+            the current vault rate.{" "}
+          </>
+        )}
         Recorded close and opening prices show the dated source session. They
         are historical references. {sessions.error} Sepolia stock
-        representations. Buying and selling require a fresh quote and an enabled
-        market.
+        representations.{" "}
+        {sessions.historicalDevelopmentPrices
+          ? "Development trading uses the saved historical snapshot with renewable onchain test-quote leases."
+          : "Buying and selling require a fresh quote and an enabled market."}
       </p>
       <Link
         className="btn secondary full"

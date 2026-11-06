@@ -21,6 +21,7 @@ export type CountryStock = {
   token: Address;
   active: boolean;
   price: bigint | null;
+  priceShares: bigint | null;
   usdPrice: bigint | null;
   updatedAt: number;
   validUntil: number;
@@ -32,7 +33,11 @@ export type CountryStock = {
   usdtUsd: bigint;
 };
 export async function countryStocks(
-  config: { countries: CountryConfig[]; tradingEngine: Address },
+  config: {
+    countries: CountryConfig[];
+    tradingEngine: Address;
+    atlasVault?: Address;
+  },
   account: Address,
 ): Promise<CountryStock[]> {
   const groups = await Promise.all(
@@ -103,6 +108,22 @@ export async function countryStocks(
         })),
         allowFailure: true,
       });
+      const sharePrices = config.atlasVault
+        ? await sepoliaClient.multicall({
+            contracts: prices.map((quote) => ({
+              address: config.atlasVault!,
+              abi: abis.AtlasVault as Abi,
+              functionName: "previewWithdraw",
+              args: [
+                quote.status === "success"
+                  ? (((quote.result as readonly bigint[])[0] ?? 0n) + 99n) /
+                    100n
+                  : 0n,
+              ],
+            })),
+            allowFailure: true,
+          })
+        : [];
       return ids.map((id, index) => {
         const stock = results[index * 5] as {
           ticker: string;
@@ -130,6 +151,10 @@ export async function countryStocks(
           token: country.address,
           active: stock.active,
           price: price?.[0] ?? null,
+          priceShares:
+            price && sharePrices[index]?.status === "success"
+              ? (sharePrices[index].result as bigint)
+              : null,
           usdPrice: price?.[3] ?? null,
           updatedAt: Number(price?.[1] ?? native[1]),
           validUntil: Number(price?.[2] ?? native[2]),

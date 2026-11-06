@@ -8,8 +8,9 @@ import {
   MarketStatusService,
   stockMarketStatus,
 } from "../src/protocol/stock-sessions.js";
+import { scaledPrice } from "../src/protocol/price-service.js";
 const sourceFile = resolve("config/web-market-reference.json");
-const checkedAt = Date.UTC(2026, 10, 6, 12);
+const checkedAt = Date.now() + 60000;
 
 test("researched session data covers all fifty listings and preserves source currencies and dates", () => {
   const data = readSessionSnapshot(sourceFile, checkedAt);
@@ -23,8 +24,10 @@ test("researched session data covers all fifty listings and preserves source cur
   }
   const hsbc = data.stocks.find((s) => s.ticker === "HSBA")!;
   assert.equal(hsbc.sourceUnit, "GBX");
-  assert.equal(hsbc.sourceSessionOpen, "1335.40");
-  assert.equal(hsbc.sessionOpen, "13.35400000");
+  assert.equal(
+    scaledPrice(hsbc.sessionOpen),
+    scaledPrice(hsbc.sourceSessionOpen) / 100n,
+  );
   assert.equal(hsbc.currency, "GBP");
 });
 

@@ -2,6 +2,7 @@ import {
   createPublicClient,
   createWalletClient,
   http,
+  fallback,
   custom,
   type Abi,
   type Address,
@@ -14,11 +15,20 @@ import { sepolia } from "viem/chains";
 import abis from "./abis.json";
 export { abis, isAddress, zeroAddress, parseUnits };
 export const rpc =
-  import.meta.env.VITE_SEPOLIA_RPC_URL ||
-  "https://ethereum-sepolia-rpc.publicnode.com";
+  import.meta.env.VITE_SEPOLIA_RPC_URL || "https://sepolia.gateway.tenderly.co";
+const rpcUrls = [
+  ...new Set([
+    rpc,
+    "https://sepolia.gateway.tenderly.co",
+    "https://ethereum-sepolia-rpc.publicnode.com",
+  ]),
+];
 export const client = createPublicClient({
   chain: sepolia,
-  transport: http(rpc, { timeout: 20000, retryCount: 1 }),
+  transport: fallback(
+    rpcUrls.map((url) => http(url, { timeout: 10000, retryCount: 0 })),
+    { retryCount: 1, retryDelay: 1000 },
+  ),
 });
 export const marketAbi = abis.AtlasCountryMarket as Abi;
 export type Country = {
@@ -275,5 +285,11 @@ export function amount(value: string, decimals = 8) {
 }
 export function message(error: unknown) {
   const e = error as { shortMessage?: string; message?: string };
+  if (
+    /request exceeds defined limit|rate limit|too many requests/i.test(
+      `${e.shortMessage || ""} ${e.message || ""}`,
+    )
+  )
+    return "The Sepolia RPC provider is limiting requests. Wait a moment and refresh state, or configure another VITE_SEPOLIA_RPC_URL in admin/.env.local.";
   return e.shortMessage || e.message || "The request failed.";
 }

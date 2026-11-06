@@ -7,6 +7,7 @@ import type { MarketPreference } from "@/lib/types";
 import {
   useStockSessions,
   regionMarketState,
+  regionAtlasOpen,
 } from "@/lib/protocol/stock-sessions";
 export function AtlasLogo({ compact = false }: { compact?: boolean }) {
   return (
@@ -63,7 +64,7 @@ export function MarketClock({ market }: { market: MarketPreference }) {
   return <span className="mono">{time}</span>;
 }
 export function GlobalMarketClock() {
-  const { stocks } = useStockSessions();
+  const { stocks, developmentMarkets, vault } = useStockSessions();
   const regions = ["india", "usa", "uk", "singapore", "europe"];
   const known = regions.filter(
     (r) => regionMarketState(stocks, r) !== "unknown",
@@ -77,7 +78,13 @@ export function GlobalMarketClock() {
       <span>Global market clock</span>
       <span className="status-dot" />
       <span>
-        {known.length === 5 ? `${open} / 5 open` : "Checking exchange status…"}
+        {developmentMarkets && !vault
+          ? "Atlas market status unavailable"
+          : developmentMarkets && stocks.length
+            ? `${regions.filter((r) => regionAtlasOpen(stocks, r)).length} / 5 Atlas open · dev`
+            : known.length === 5
+              ? `${open} / 5 exchanges open`
+              : "Checking exchange status…"}
       </span>
     </div>
   );
@@ -87,11 +94,15 @@ export function MarketCard({
   onClick,
   selected = false,
   marketState,
+  developmentOpen = false,
+  developmentMode = false,
 }: {
   market: MarketPreference;
   onClick?: () => void;
   selected?: boolean;
   marketState?: "open" | "closed" | "partial" | "unknown";
+  developmentOpen?: boolean;
+  developmentMode?: boolean;
 }) {
   return (
     <button
@@ -101,17 +112,21 @@ export function MarketCard({
       <div className="market-card-top">
         <span className="flag">{market.flag}</span>
         <span
-          className={`market-status ${marketState === "open" || market.id === "crypto" ? "" : "closed"}`}
+          className={`market-status ${(developmentMode ? developmentOpen : marketState === "open" || market.id === "crypto") ? "" : "closed"}`}
         >
-          {market.id === "crypto"
-            ? "● 24/7"
-            : marketState === "open"
-              ? "● OPEN"
-              : marketState === "closed"
-                ? "○ CLOSED"
-                : marketState === "partial"
-                  ? "◐ PARTLY OPEN"
-                  : "STATUS UNAVAILABLE"}
+          {developmentMode
+            ? developmentOpen
+              ? "● ATLAS OPEN · DEV"
+              : "ATLAS NOT OPEN · DEV"
+            : market.id === "crypto"
+              ? "● 24/7"
+              : marketState === "open"
+                ? "● OPEN"
+                : marketState === "closed"
+                  ? "○ CLOSED"
+                  : marketState === "partial"
+                    ? "◐ PARTLY OPEN"
+                    : "STATUS UNAVAILABLE"}
         </span>
       </div>
       <h3>
@@ -119,6 +134,17 @@ export function MarketCard({
         <ArrowUpRight size={16} />
       </h3>
       <p>{market.exchange}</p>
+      {developmentMode && (
+        <small className="exchange-state">
+          {marketState === "closed"
+            ? "Exchange closed"
+            : marketState === "open"
+              ? "Exchange open"
+              : marketState === "partial"
+                ? "Exchanges partly open"
+                : "Exchange status unavailable"}
+        </small>
+      )}
       <div className="market-card-bottom">
         <MarketClock market={market} />
         <span>{market.currency}</span>

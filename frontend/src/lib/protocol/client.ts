@@ -31,6 +31,9 @@ export type ProtocolConfig = {
   deploymentBlock: number;
   demo: boolean;
   settlementTokenIsDemo: boolean;
+  developmentMarkets?: boolean;
+  historicalDevelopmentPrices?: boolean;
+  priceReferenceDate?: string | null;
   countries: CountryConfig[];
 } & Record<Module, Address>;
 const abiNames = {

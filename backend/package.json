@@ -13,14 +13,20 @@
     "prices:update": "tsx scripts/update-country-prices.ts",
     "prices:feed": "tsx scripts/stream-market-prices.ts",
     "prices:check": "tsx scripts/update-country-prices.ts --check",
+    "prices:refresh-history": "tsx scripts/refresh-historical-prices.ts",
+    "prices:history:watch": "tsx scripts/refresh-historical-prices.ts --watch",
+    "dev:markets": "tsx scripts/development-markets.ts --watch",
+    "dev:markets:open": "tsx scripts/development-markets.ts",
     "prices:update:legacy": "tsx scripts/update-prices.ts",
-    "prices:watch": "tsx scripts/update-country-prices.ts --watch"
+    "prices:watch": "tsx scripts/update-country-prices.ts --watch",
+    "paper:demo": "tsx scripts/paper-demo.ts"
   },
   "dependencies": {
     "@arkiv-network/sdk": "^1.0.1",
     "@ensdomains/ensjs": "^5.2.12",
     "@simplewebauthn/server": "^13.3.3",
     "@worldcoin/idkit-core": "^4.6.0",
+    "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",

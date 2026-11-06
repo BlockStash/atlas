@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-05",
+  "base": "USD",
+  "source": "Frankfurter daily reference rates",
+  "sourceUrl": "https://api.frankfurter.dev/v2/rates?base=USD&quotes=INR,GBP,SGD,EUR&date=2026-11-05",
+  "nativePerUSD": {
+    "USD": "1",
+    "INR": "94.49",
+    "GBP": "0.74228",
+    "SGD": "1.2773",
+    "EUR": "0.88873"
+  }
+}

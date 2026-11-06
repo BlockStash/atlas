@@ -20,10 +20,15 @@
     "prices:update": "npm run prices:update --prefix backend",
     "prices:feed": "npm run prices:feed --prefix backend",
     "prices:check": "npm run prices:check --prefix backend",
+    "prices:refresh-history": "npm run prices:refresh-history --prefix backend",
+    "prices:history:watch": "npm run prices:history:watch --prefix backend",
+    "dev:markets": "npm run dev:markets --prefix backend",
+    "dev:markets:open": "npm run dev:markets:open --prefix backend",
     "dev:admin": "npm run dev --prefix admin",
     "prices:watch": "npm run prices:watch --prefix backend",
     "upgrade:validate": "npm run upgrade:validate --prefix contracts",
-    "protocol:smoke": "npm run protocol:build && node scripts/protocol-smoke.mjs"
+    "protocol:smoke": "npm run protocol:build && node scripts/protocol-smoke.mjs",
+    "paper:demo": "npm run paper:demo --prefix backend"
   },
   "devDependencies": {
     "prettier": "^3.9.10"

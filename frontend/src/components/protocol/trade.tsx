@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useReferencePrices } from "@/lib/protocol/reference-prices";
 import { useStockSessions, sessionAmount } from "@/lib/protocol/stock-sessions";
-import { ExchangeStatus, SessionReference } from "./session-reference";
+import {
+  ExchangeStatus,
+  SessionReference,
+  sharesAmount,
+} from "./session-reference";
 import { ArrowRight, RefreshCw } from "lucide-react";
 import {
   useProtocol,
@@ -196,6 +200,14 @@ export function TradingPage() {
     }
   }
   const hasStaleHoldings = held.some((s) => s.price === null),
+    holdingValueShares = held.reduce(
+      (sum, s) =>
+        sum +
+        (s.priceShares === null
+          ? 0n
+          : (s.balance * s.priceShares) / 10n ** 18n),
+      0n,
+    ),
     holdingValue = held.reduce(
       (sum, s) =>
         sum +
@@ -237,16 +249,19 @@ export function TradingPage() {
             <div className="protocol-metrics">
               <Metric
                 label="AVAILABLE BUYING POWER"
-                value={`${fmt(p.data.underlying)} USDT`}
+                value={sharesAmount(p.data.shares)}
+                note={`${fmt(p.data.underlying)} USDT vault claim`}
               />
               <Metric
                 label="STOCK MARKET VALUE"
                 value={
                   hasStaleHoldings
                     ? "Price unavailable"
-                    : `${fmt(holdingValue)} USDT`
+                    : held.some((s) => s.priceShares === null)
+                      ? "Conversion unavailable"
+                      : sharesAmount(holdingValueShares)
                 }
-                note="Indicative value; sells require reserve liquidity"
+                note={`${fmt(holdingValue)} USDT equivalent; sells require reserve liquidity`}
               />
               <Metric
                 label="INDICATIVE P/L"
@@ -257,10 +272,23 @@ export function TradingPage() {
               />
             </div>
             <p className="session-reference-note">
-              Recorded close and opening prices are historical web references in
-              each stock’s native currency. Check the date and source before
-              using them. Exchange status is checked separately.{" "}
-              {sessions.error}
+              <strong>1 aUSDT ≈ {fmt(p.data.sharePrice, 6, 6)} USDT</strong> at
+              the current vault rate. Stock unit prices are before trading fees.
+            </p>
+            {p.config.developmentMarkets && (
+              <p className="session-reference-note">
+                {p.config.historicalDevelopmentPrices
+                  ? `Fixed development prices from ${p.config.priceReferenceDate}. Buy and sell using the historical snapshot; these are not live market prices.`
+                  : "Development markets stay open outside exchange hours. Fresh live quotes are required to trade."}{" "}
+                aUSDT shares are backed by Sepolia test USDT in the vault; their
+                conversion rate comes from the vault.
+              </p>
+            )}
+            <p className="session-reference-note">
+              Recorded close and opening prices are historical references
+              converted to aUSDT using dated FX, USDT/USD and the current vault
+              rate. Check the date and source. Exchange status is checked
+              separately. {sessions.error}
             </p>
             <div className="protocol-trading-layout">
               <section>
@@ -282,9 +310,9 @@ export function TradingPage() {
                       <tr>
                         <th>Stock</th>
                         <th>Market</th>
-                        <th>Recorded close</th>
-                        <th>Opening price</th>
-                        <th>Trading price (USDT)</th>
+                        <th>Recorded close (aUSDT)</th>
+                        <th>Opening price (aUSDT)</th>
+                        <th>Trading price (aUSDT)</th>
                         <th>Your holding</th>
                         <th>Status</th>
                         <th />
@@ -308,14 +336,28 @@ export function TradingPage() {
                               {s.exchange}
                               <small>{s.nativeCurrency}</small>
                               <ExchangeStatus market={session?.market} />
+                              {p.config?.developmentMarkets && (
+                                <small>
+                                  {session?.atlasMarket?.open
+                                    ? "Atlas open · development"
+                                    : "Atlas market not open"}
+                                </small>
+                              )}
                             </td>
                             <td>
                               {session ? (
                                 <>
-                                  {sessionAmount(
-                                    session.sessionClose,
-                                    session.currency,
-                                  )}
+                                  {session.valuation
+                                    ? sharesAmount(
+                                        session.valuation.close.priceAUSDT,
+                                      )
+                                    : "Conversion unavailable"}
+                                  <small>
+                                    {sessionAmount(
+                                      session.sessionClose,
+                                      session.currency,
+                                    )}
+                                  </small>
                                   <small>
                                     {session.sessionDate} · historical
                                   </small>
@@ -335,10 +377,17 @@ export function TradingPage() {
                             <td>
                               {session ? (
                                 <>
-                                  {sessionAmount(
-                                    session.sessionOpen,
-                                    session.currency,
-                                  )}
+                                  {session.valuation
+                                    ? sharesAmount(
+                                        session.valuation.open.priceAUSDT,
+                                      )
+                                    : "Conversion unavailable"}
+                                  <small>
+                                    {sessionAmount(
+                                      session.sessionOpen,
+                                      session.currency,
+                                    )}
+                                  </small>
                                   <small>{session.sessionDate}</small>
                                 </>
                               ) : (
@@ -347,9 +396,9 @@ export function TradingPage() {
                             </td>
                             <td>
                               {s.price === null ? (
-                                reference ? (
+                                reference?.priceAUSDT ? (
                                   <>
-                                    {fmt(BigInt(reference.priceUSDT), 8, 4)}
+                                    {sharesAmount(reference.priceAUSDT)}
                                     <small>
                                       Provider reference ·{" "}
                                       {new Date(
@@ -361,7 +410,14 @@ export function TradingPage() {
                                   "Unavailable"
                                 )
                               ) : (
-                                fmt(s.price, 8, 4)
+                                <>
+                                  {s.priceShares !== null
+                                    ? sharesAmount(s.priceShares)
+                                    : "Conversion unavailable"}
+                                  <small>
+                                    {fmt(s.price, 8, 4)} USDT before fees
+                                  </small>
+                                </>
                               )}
                             </td>
                             <td>{fmt(s.balance, 18, 6)}</td>
@@ -378,10 +434,14 @@ export function TradingPage() {
                                 {!s.active
                                   ? "Disabled"
                                   : s.price === null
-                                    ? reference
-                                      ? "Onchain quote expired"
-                                      : "Stale / no quote"
-                                    : "Price fresh"}
+                                    ? p.config?.historicalDevelopmentPrices
+                                      ? "Development prices loading"
+                                      : reference
+                                        ? "Onchain quote expired"
+                                        : "Stale / no quote"
+                                    : p.config?.historicalDevelopmentPrices
+                                      ? "Development price"
+                                      : "Price fresh"}
                               </span>
                             </td>
                             <td>
@@ -532,7 +592,9 @@ export function TradingPage() {
                       <p className="protocol-legal">
                         {!asset.active
                           ? "This stock is disabled."
-                          : "The provider reference is for display. Trading requires a fresh quote published to this market contract."}
+                          : p.config.historicalDevelopmentPrices
+                            ? "The development publisher must load the saved test prices before trading. Run npm run prices:update."
+                            : "The provider reference is for display. Trading requires a fresh quote published to this market contract."}
                       </p>
                     )}
                     {p.data.enginePaused && (

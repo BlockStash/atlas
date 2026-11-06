@@ -11,6 +11,19 @@ import {
   readSessionSnapshot,
   stockMarketStatus,
 } from "./stock-sessions.js";
+import {
+  readVaultPricing,
+  historicalSharePrices,
+  sharesForStockPrice,
+  readHistoricalPricingInputs,
+} from "./vault-pricing.js";
+import {
+  historicalDevelopmentMode,
+  readReferenceFx,
+} from "./historical-development.js";
+const developmentMarkets = () =>
+  process.env.NODE_ENV !== "production" &&
+  process.env.ATLAS_DEVELOPMENT_MARKETS === "true";
 export function protocolRouter() {
   const router = Router();
   let history: PriceHistoryStore | undefined;
@@ -19,34 +32,50 @@ export function protocolRouter() {
     res.set("Cache-Control", "no-store");
     try {
       const data = readSessionSnapshot();
-      const status = await marketStatus.snapshot();
+      const [status, vaultResult] = await Promise.all([
+        marketStatus.snapshot(),
+        readVaultPricing().catch(() => null),
+      ]);
+      const inputs = readHistoricalPricingInputs();
       res.json({
         ...data,
+        developmentMarkets: developmentMarkets(),
+        historicalDevelopmentPrices: historicalDevelopmentMode(),
+        vault: vaultResult,
         stocks: data.stocks.map((s) => ({
           ...s,
           market: stockMarketStatus(s.exchange, status),
+          atlasMarket:
+            vaultResult?.markets.find((m) => m.region === s.region) ?? null,
+          valuation: vaultResult
+            ? historicalSharePrices(s, vaultResult, inputs)
+            : null,
         })),
       });
     } catch {
-      res
-        .status(503)
-        .json({
-          error: {
-            code: "SESSION_REFERENCES_UNAVAILABLE",
-            message: "Historical stock references are temporarily unavailable.",
-          },
-        });
+      res.status(503).json({
+        error: {
+          code: "SESSION_REFERENCES_UNAVAILABLE",
+          message: "Historical stock references are temporarily unavailable.",
+        },
+      });
     }
   });
-  router.get("/market-prices", (_req, res) => {
+  router.get("/market-prices", async (_req, res) => {
     res.set("Cache-Control", "no-store");
     try {
+      const vault = await readVaultPricing().catch(() => null);
       res.json({
         prices: referencePrices(
           resolve(
             process.env.MARKET_FEED_CACHE_FILE || "data/market-feed.json",
           ),
-        ),
+        ).map((p) => ({
+          ...p,
+          priceAUSDT: vault
+            ? sharesForStockPrice(BigInt(p.priceUSDT), vault).toString()
+            : null,
+        })),
       });
     } catch {
       res.json({
@@ -59,9 +88,15 @@ export function protocolRouter() {
   router.get("/config", async (_req, res) => {
     try {
       const config = await readCountryManifest();
-      res
-        .set("Cache-Control", "no-store")
-        .json({ configured: true, ...config });
+      res.set("Cache-Control", "no-store").json({
+        configured: true,
+        developmentMarkets: developmentMarkets(),
+        historicalDevelopmentPrices: historicalDevelopmentMode(),
+        priceReferenceDate: historicalDevelopmentMode()
+          ? readReferenceFx().date
+          : null,
+        ...config,
+      });
     } catch {
       res.json({
         configured: false,

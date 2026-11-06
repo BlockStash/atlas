@@ -11,6 +11,7 @@ const names = [
   "AtlasCountryMarket",
   "AtlasCountryProxy",
   "AtlasCountryTradingEngine",
+  "AtlasIntentManager",
 ];
 const abis = {};
 await mkdir(new URL("abi/", root), { recursive: true });

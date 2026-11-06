@@ -296,6 +296,22 @@ export class StreamingPriceProvider implements PriceProvider {
 }
 
 /** Indicative reference values only. Never passed to the executable quote path. */
+export function readUsdtObservation(
+  file: string,
+  now = Math.floor(Date.now() / 1000),
+  maxAge = 900,
+) {
+  try {
+    const data = cacheSchema.parse(JSON.parse(readFileSync(file, "utf8")));
+    return data.usdt &&
+      data.usdt.timestamp <= now &&
+      now - data.usdt.timestamp < maxAge
+      ? data.usdt
+      : null;
+  } catch {
+    return null;
+  }
+}
 export function referencePrices(
   file: string,
   now = Math.floor(Date.now() / 1000),

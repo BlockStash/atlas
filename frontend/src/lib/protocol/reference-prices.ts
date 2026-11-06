@@ -3,6 +3,7 @@ import { api } from "../api";
 export type ReferencePrice = {
   stockId: string;
   priceUSDT: string;
+  priceAUSDT: string | null;
   timestamp: number;
   usdtTimestamp: number;
   source: string;

@@ -115,13 +115,23 @@ Provider references: [Twelve Data WebSockets](https://twelvedata.com/docs/websoc
 
 ## Historical references for all 50 stocks
 
-`GET /api/protocol/stock-sessions` serves `config/web-market-reference.json`: a dated research snapshot with recorded session close, session opening price, the preceding close, native currency, original quote units, source URL and retrieval time. The initial snapshot covers November 5, 2026 sessions, with preceding closes from November 4. Records were researched on November 6 in India (the retrieval timestamp is stored in UTC). These are manually researched historical observations; the application does not continuously query Google or scrape financial pages. Refresh the snapshot through a new source review when newer historical sessions are needed. `WEB_REFERENCE_FILE` can select a replacement JSON with the same schema.
+`GET /api/protocol/stock-sessions` serves `config/web-market-reference.json`: a dated research snapshot with recorded session close, session opening price, the preceding close, native currency, original quote units, source URL and retrieval time. The initial snapshot covers November 5, 2026 sessions, with preceding closes from November 4. Records were researched on November 6 in India (the retrieval timestamp is stored in UTC). The development refresh task reads the saved public Stock Analysis historical tables, validates their columns, listing, currency and dates, and selects the latest completed session common to all 50 stocks. It checks crawling rules and spaces page requests by two seconds; failed requests retain the saved snapshot. `WEB_REFERENCE_FILE` can select a replacement JSON with the same schema.
 
 Sources were discovered through web search and read from each listing’s Stock Analysis historical-data page, with an exact source link retained per stock. Original pence prices are stored alongside normalized GBP values and validated at a 100:1 conversion. All records are checked against the seeded stock ID, exchange, ticker and native currency; duplicate IDs, future dates, unsupported units and inconsistent conversions are rejected. New onchain stocks without a researched record remain unrecorded rather than receiving sample values.
 
 The same response attaches current exchange status from Twelve Data’s `market_state` endpoint. The backend caches one all-exchange response for at most 15 minutes, expires it at the next reported opening/closing boundary, coalesces concurrent requests, and persists the cache in `MARKET_STATUS_FILE` (default `data/market-status.json`). Expired/missing data displays status unavailable. This metadata endpoint works on the configured Basic account even when non-US price endpoints require another plan. Status calls have a separate persisted cap of 96/day, keeping the combined status and quote worker budgets within 796 requests/day; other users of the same key also consume provider quota.
 
-Market drawers, country cards, the global open-count and the trading table use these references/statuses. Historical values stay in native currency and are never treated as USDT trading quotes, published to Sepolia, used to enable orders, or substituted for portfolio valuations. Quotes for execution continue through the existing authorised price publisher. No deployment is required for this display feature.
+Market drawers, country cards, the global open-count and the trading table use these references/statuses. Historical source values retain their native currency. The UI converts them to aUSDT reference prices using the dated FX snapshot, an observed USDT/USD rate and the current vault exchange rate. In live mode these references are display only. Explicit historical development mode can publish their closing prices as fixed test quotes, with original source dates preserved and separate test publication timestamps. No deployment is required for this display feature.
+
+## Development markets and aUSDT prices
+
+Set `ATLAS_DEVELOPMENT_MARKETS=true` in `backend/.env` for Sepolia development. `npm run dev` starts the market keeper alongside the app, or run `npm run dev:markets` separately. `npm run dev:markets:open` performs one pass. The keeper checks all five markets hourly and, when less than 12 hours remain, opens a new 23-hour window. The contract's one-day limit stays intact. The signer needs owner, `ADMIN_ROLE`, or `MARKET_ADMIN_ROLE` access on every country contract; configure `MARKET_ADMIN_PRIVATE_KEY`, or use the already authorised `PRICE_UPDATER_PRIVATE_KEY`. Calls are restricted to Sepolia outside production, and explicit pauses require a separate admin action. A PID lock prevents two keepers from renewing simultaneously. A keeper failure is reported without taking down the app. Stop the running keeper when disabling development mode; changing `.env` alone does not stop an existing process.
+
+Atlas development-market status and the actual exchange status are displayed separately. Opening Atlas does not change the selected quote source. Disabled stocks, stale prices, reserve liquidity, fees and wallet approvals remain enforced by the contracts. Historical prices become executable only through the explicit development mode described below.
+
+aUSDT is the existing ERC-4626 AtlasVault share backed by the configured Sepolia AtlasUSDT settlement token. USDT uses 6 decimals and aUSDT uses 12. For one stock, the UI reads `previewWithdraw(ceil(priceUSDT8 / 100))` from the vault for the fee-exclusive buy-equivalent unit price. The backend matches this exact rounding using the vault's virtual assets/shares: `ceil(assetsUSDT6 * (totalShares12 + 1e6) / (totalAssets6 + 1))`. This is not a fixed rename from USDT: the displayed share amount changes when vault backing changes. The executable review continues to use the engine's `quoteBuy`/`quoteSell`, including fees and rounding.
+
+`/api/protocol/stock-sessions` includes same-block vault totals and Atlas market states, plus aUSDT opening/closing references for all 50 researched stocks. `FX_REFERENCE_FILE` selects the dated daily reference file (`config/fx-reference.json`, with a Frankfurter source URL). Rates are native currency per USD; conversion divides by that rate, then divides USD by the observed USD-per-USDT price. The historical reference FX date must match the stock session. The vault rate is current, not a reconstruction of the historical share value. Missing FX, USDT or RPC observations result in unavailable conversion rather than assuming 1 USD = 1 USDT = 1 aUSDT. Live prices still need appropriate provider coverage for each country.
 
 ## POC Arkiv and ENS extensions
 
@@ -139,3 +149,33 @@ Set `ARKIV_ACCESS_KEY` to a free key from [Arkiv Hub](https://hub.arkiv.network/
 | GET    | `/api/storage/status`       | Authenticated storage driver/readiness and public signer address.                                             |
 
 `ensName`, `ensChainId` and `ensVerifiedAt` are server-owned profile fields. General `PUT /profile` rejects attempts to modify them. Login and mapping use backend RPC resolution, so client claims cannot substitute a different wallet address. The frontend uses ENSjs and viem to prepare wallet-approved Sepolia registration transactions; the backend never holds the user's MetaMask private key.
+
+## Historical prices for development
+
+All 50 onboarded stocks can use dated closing prices for development without a live provider subscription. This mode is restricted to Sepolia/local chains outside production. Configure `backend/.env`:
+
+```dotenv
+PRICE_SOURCE=historical-development
+ATLAS_DEVELOPMENT_MARKETS=true
+DEVELOPMENT_PRICE_MAX_AGE_SECONDS=86400
+DEVELOPMENT_PRICE_BASIS_FILE=./config/development-price-basis.json
+```
+
+Keep the configured `PRICE_UPDATER_PRIVATE_KEY` server-side. The initial publisher needs the market owner to change the quote lifetime; later renewals can use an authorised price updater. The market keeper needs market administration permission.
+
+From the repository root:
+
+```sh
+npm run prices:refresh-history # optional: refresh all saved source pages and matching dated FX
+npm run prices:check           # read-only validation
+npm run prices:update          # publish fixed historical test quotes on Sepolia
+npm run dev                    # app, market keeper, publisher and daily reference refresh
+```
+
+The scraper retains source links, original native prices, opening price, previous close and session dates. GBP pence quotes are converted exactly. A single fixed, dated Kraken USDT/USD reference is used with dated FX; no live tick is required. Execution uses historical **closing** prices. Opening prices and actual exchange status remain separate display information.
+
+Test quote leases last up to 24 hours and renew when less than half their lifetime remains. Their publication time is a test lease time, not a claim that the historical observation is live. The UI labels development prices and valuations. aUSDT amounts use the vault's current ERC4626 conversion and its actual Sepolia test-USDT backing; no additional collateral or shares are invented. Stock quantities, wallet balances, fees, pauses and reserve checks remain onchain.
+
+`npm run dev` starts the optional workers automatically in this mode. Run only one publisher; PID locks prevent duplicates. Existing app processes need restarting to pick up new worker settings. A failed source refresh preserves the previous snapshot. New onboarded listings need a validated source mapping before publishing.
+
+To return to live data, stop the historical publisher, select `PRICE_SOURCE=twelvedata-kraken`, restore each market's intended live `maxPriceAge` (normally 900 seconds) through the owner/admin controls, then start the live feed and publisher. Historical mode refuses production and mainnet.

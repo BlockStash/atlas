@@ -178,6 +178,9 @@ export function StrategyDetailPage({ id }: { id: string }) {
             </div>
           </div>
           <div className="strategy-head-actions">
+            <Link className="text-button" href="/paper">
+              Test in Paper Trading ↗
+            </Link>
             {owner ? (
               <>
                 <button

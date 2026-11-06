@@ -1,0 +1,10 @@
+{
+  "source": "Illustrative AAPL replay fixture, not real historical ticks",
+  "currency": "USDT",
+  "ticks": [
+    { "symbol": "AAPL", "timestamp": 1793892540, "price": "200" },
+    { "symbol": "AAPL", "timestamp": 1793892600, "price": "200" },
+    { "symbol": "AAPL", "timestamp": 1793892660, "price": "205" },
+    { "symbol": "AAPL", "timestamp": 1793892720, "price": "206" }
+  ]
+}

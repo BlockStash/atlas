@@ -69,6 +69,8 @@ export async function loadCountryCatalog(
     new JsonRpcProvider(
       process.env.PROTOCOL_RPC_URL ||
         "https://ethereum-sepolia-rpc.publicnode.com",
+      undefined,
+      { batchMaxCount: 1 },
     );
   try {
     const groups = await Promise.all(
