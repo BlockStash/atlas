@@ -511,6 +511,7 @@ export class ExecutionWorker {
           parsePrice(pos.entry_price_usdt),
           px,
           now,
+          pos.opened_at,
         );
         if (ev.satisfied) {
           reason = ev.trigger!;

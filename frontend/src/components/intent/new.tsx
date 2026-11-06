@@ -349,13 +349,17 @@ export function NewIntentPage() {
         );
       }
       setSigning("activating");
-      await intentApi.activate(created.id, signature, permission);
+      const activated = await intentApi.activate(
+        created.id,
+        signature,
+        permission,
+      );
       toast(
         funding
           ? "Strategy activated. Atlas will execute it on Sepolia with your aUSDT."
           : "Strategy activated. Atlas is now watching the conditions.",
       );
-      router.push("/intent");
+      router.push(`/intent?deployed=${activated.id}`);
     } catch (e) {
       fail(e);
       setSigning("idle");
@@ -478,7 +482,7 @@ export function NewIntentPage() {
                 </div>
               )}
             </div>
-            {!draft && !portfolioId && (
+            {!draft && !portfolioId && !clarifying && messages.every((m) => m.role !== "user") && (
               <div className="studio-suggest">
                 {EXAMPLES.map((e) => (
                   <button key={e} disabled={busy} onClick={() => void send(e)}>
@@ -806,7 +810,11 @@ export function NewIntentPage() {
                           <button
                             className="btn primary"
                             disabled={!canConfirm}
-                            onClick={() => setRunTab("deploy")}
+                            onClick={() => {
+                              setRunTab("deploy");
+                              setAck(false);
+                              setConfirm(true);
+                            }}
                           >
                             <Rocket size={14} /> Deploy
                           </button>

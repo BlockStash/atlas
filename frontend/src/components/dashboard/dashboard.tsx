@@ -23,6 +23,7 @@ import {
   regionAtlasOpen,
 } from "@/lib/protocol/stock-sessions";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
+import { ArkivActivity } from "@/components/wallet/arkiv-activity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
 import { DashboardShell } from "./shell";
 import { CryptoMarket } from "./crypto-market";
@@ -385,6 +386,7 @@ export function Dashboard({
             <div className="panel ens-wallet-panel">
               <ENSIdentity />
             </div>
+            <ArkivActivity />
             <SepoliaWallet />
             <OnchainPortfolio view="wallet" />
             <div className="wallet-explanation panel">

@@ -180,7 +180,13 @@ const RUN_TABS = [
 ] as const;
 
 /** Backtest, paper trade or deploy a strategy's saved Atlas AI trade plan. */
-export function PlanRunner({ plan }: { plan: ExecutablePlan }) {
+export function PlanRunner({
+  plan,
+  onDeployed,
+}: {
+  plan: ExecutablePlan;
+  onDeployed?: (intentId: string) => void;
+}) {
   const { wallet, toast } = useAtlas();
   const router = useRouter();
   // Times are rebased once per visit, so "valid for 24h" counts from now.
@@ -295,13 +301,21 @@ export function PlanRunner({ plan }: { plan: ExecutablePlan }) {
         );
       }
       setSigning("activating");
-      await intentApi.activate(created.id, signature, permission);
+      const activated = await intentApi.activate(
+        created.id,
+        signature,
+        permission,
+      );
       toast(
         funding
           ? "Strategy deployed. Atlas will execute it on Sepolia with your aUSDT."
           : "Strategy deployed. Atlas is now watching the conditions.",
       );
-      router.push("/intent");
+      if (onDeployed) {
+        setConfirm(false);
+        setSigning("idle");
+        onDeployed(activated.id);
+      } else router.push(`/intent?deployed=${activated.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not deploy.");
       setSigning("idle");

@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Bell, Bot, Plus, Sparkles } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Bell, CheckCircle2, ExternalLink, Plus, Sparkles } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { useAtlas } from "@/components/atlas/provider";
 import { DemoBanner } from "./new";
@@ -11,6 +12,9 @@ import {
   describeAllocation,
   describeEntry,
   describeExit,
+  execFee,
+  execQty,
+  execValue,
   intentApi,
   num,
   timeLeft,
@@ -47,13 +51,14 @@ const LABEL: Record<string, string> = {
 
 export function IntentDashboard() {
   const { toast } = useAtlas();
+  const deployedId = useSearchParams().get("deployed");
   const [items, setItems] = useState<IntentView[]>([]);
   const [tab, setTab] = useState<Tab>("Active");
   const [cfg, setCfg] = useState<IntentConfig | null>(null);
   const [notes, setNotes] = useState<Notification[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(deployedId);
   /** Notification ids from the previous poll; null until the first load (no toasts for old ones). */
   const seenNotes = useRef<Set<Notification["id"]> | null>(null);
 
@@ -164,6 +169,9 @@ export function IntentDashboard() {
             </button>
           ))}
         </div>
+        {deployedId && items.some((i) => i.id === deployedId) && (
+          <DeployedBanner v={items.find((i) => i.id === deployedId)!} />
+        )}
         {error && (
           <div className="error-box" role="alert">
             {error}
@@ -330,6 +338,7 @@ function IntentCard({
           </div>
         )}
       </div>
+      <TradeResult v={v} />
       <p className="intent-summary-line">{v.summary}</p>
       <footer>
         <button className="text-button" onClick={onToggle}>
@@ -351,6 +360,139 @@ function IntentCard({
       </footer>
       {expanded && <Timeline id={v.id} />}
     </article>
+  );
+}
+
+export const STAGE: Record<string, { title: string; text: string }> = {
+  ACTIVE: {
+    title: "Strategy deployed",
+    text: "Atlas is watching your conditions.",
+  },
+  WAITING_FOR_ENTRY: {
+    title: "Strategy deployed",
+    text: "Waiting for your entry rule to be met.",
+  },
+  EXECUTING: {
+    title: "Strategy deployed",
+    text: "Atlas is placing your buy now.",
+  },
+  POSITION_OPEN: {
+    title: "Strategy deployed — bought",
+    text: "The buy filled. Atlas is monitoring your exit rules.",
+  },
+  MONITORING: {
+    title: "Strategy deployed — bought",
+    text: "The buy filled. Atlas is monitoring your exit rules.",
+  },
+  EXIT_TRIGGERED: {
+    title: "Strategy deployed — selling",
+    text: "Your exit rule was met. Atlas is selling.",
+  },
+  COMPLETED: {
+    title: "Trade complete",
+    text: "Bought and sold. Your result is below.",
+  },
+  FAILED: {
+    title: "Strategy failed",
+    text: "See the reason on the card below.",
+  },
+};
+function DeployedBanner({ v }: { v: IntentView }) {
+  const s = STAGE[v.status] ?? STAGE.ACTIVE!;
+  return (
+    <div className="intent-deployed" role="status">
+      <CheckCircle2 size={22} />
+      <div>
+        <strong>
+          {s.title} · {v.intent.asset.symbol}
+        </strong>
+        <span>{s.text}</span>
+      </div>
+    </div>
+  );
+}
+
+const EXIT_WHY: Record<string, string> = {
+  TAKE_PROFIT_BPS: "Take profit hit",
+  STOP_LOSS_BPS: "Stop loss hit",
+  PRICE_ABOVE: "Price target reached",
+  PRICE_BELOW: "Price floor reached",
+  TIME_EXIT: "Hold time ended",
+  MANUAL_CLOSE: "Closed by you",
+};
+/** What actually happened: the buy, the sell and the net result, with Sepolia links for live trades. */
+export function TradeResult({ v }: { v: IntentView }) {
+  const buy = v.executions.find((e) => e.kind === "ENTRY");
+  const sell = v.executions.find((e) => e.kind === "EXIT");
+  if (!buy) return null;
+  const cost = execValue(buy);
+  const fees = execFee(buy) + (sell ? execFee(sell) : 0);
+  const live =
+    v.position?.status === "OPEN"
+      ? Number(v.position.current_price_usdt)
+      : undefined;
+  const out = sell ? execValue(sell) : live ? execQty(buy) * live : undefined;
+  const net = out === undefined ? undefined : out - cost - fees;
+  const link = (h: string | null) =>
+    h && v.executionMode === "ONCHAIN" ? (
+      <a
+        href={`https://sepolia.etherscan.io/tx/${h}`}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="View transaction"
+      >
+        <ExternalLink size={12} />
+      </a>
+    ) : null;
+  const why = v.position?.exit_reason;
+  return (
+    <div className="intent-result">
+      <h4>{sell ? "Trade result" : "Trade so far"}</h4>
+      <div className="intent-legs">
+        <div>
+          <small>Bought {link(buy.tx_hash)}</small>
+          <strong>
+            {num(String(execQty(buy)), 4)} {v.intent.asset.symbol}
+          </strong>
+          <span>
+            at {usd(buy.price_usdt)} · {usd(String(cost))}
+          </span>
+        </div>
+        <div>
+          <small>{sell ? <>Sold {link(sell.tx_hash)}</> : "Sell"}</small>
+          <strong>
+            {sell
+              ? `${num(String(execQty(sell)), 4)} ${v.intent.asset.symbol}`
+              : "Not yet"}
+          </strong>
+          <span>
+            {sell
+              ? `at ${usd(sell.price_usdt)} · ${usd(String(out))}`
+              : live
+                ? `now ${usd(String(live))}`
+                : "waiting for exit rule"}
+          </span>
+        </div>
+        <div className={net === undefined ? "" : net >= 0 ? "gain" : "loss"}>
+          <small>{sell ? "Net result" : "Unrealised"}</small>
+          <strong>
+            {net === undefined
+              ? "—"
+              : `${net >= 0 ? "+" : "−"}${usd(String(Math.abs(net)))}`}
+          </strong>
+          <span>
+            {net === undefined || !cost
+              ? ""
+              : `${net >= 0 ? "+" : ""}${((net / cost) * 100).toFixed(2)}% after ${usd(String(fees))} fees`}
+          </span>
+        </div>
+      </div>
+      {sell && why && (
+        <p className="intent-note">
+          {EXIT_WHY[why] ?? why.replace(/_/g, " ").toLowerCase()}.
+        </p>
+      )}
+    </div>
   );
 }
 
