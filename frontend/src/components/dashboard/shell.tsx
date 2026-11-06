@@ -4,9 +4,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell,
-  Bot,
   ChevronDown,
+  ExternalLink,
   Globe2,
+  Sparkles,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -15,7 +16,6 @@ import {
   ShieldCheck,
   Wallet,
   Landmark,
-  ChartCandlestick,
   Compass,
   Layers,
   X,
@@ -26,22 +26,23 @@ import {
   LoadingScreen,
 } from "@/components/atlas/ui";
 import { useAtlas } from "@/components/atlas/provider";
+import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
 import { ENSName } from "@/components/wallet/ens-name";
 const links = [
+  { href: "/home", label: "Atlas AI home", Icon: Sparkles },
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/markets", label: "Global markets", Icon: Globe2 },
   { href: "/portfolio", label: "My portfolio", Icon: PieChart },
   { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/vault", label: "Atlas Vault", Icon: Landmark },
-  { href: "/trade", label: "Synthetic stocks", Icon: ChartCandlestick },
-  { href: "/intent", label: "AI intent trading", Icon: Bot },
-  { href: "/paper", label: "Paper Trading", Icon: ChartCandlestick },
+  // Atlas AI trading (/intent) is hidden from the menu; strategies run it via "Create with Atlas AI".
   { href: "/strategies", label: "Explore strategies", Icon: Compass },
   { href: "/strategies/mine", label: "My strategies", Icon: Layers },
 ];
 /** Personal strategy routes highlight "My strategies"; other /strategies/* pages highlight Explore. */
 const isActive = (href: string, path: string) => {
   if (href === "/intent") return path === href || path.startsWith("/intent/");
+  if (href === "/home") return path === href;
   if (href === "/strategies/mine")
     return path === href || path === "/strategies/new";
   if (href === "/strategies")
@@ -143,7 +144,8 @@ export function DashboardShell({
           >
             <Menu size={21} />
           </button>
-          {onSearch ? (
+          {/* Only pages that filter on it (markets views) show the header search. */}
+          {onSearch && (
             <label className="search-field">
               <Search size={16} />
               <input
@@ -155,17 +157,15 @@ export function DashboardShell({
               />
               <kbd>/</kbd>
             </label>
-          ) : (
-            <Link className="search-field" href="/markets">
-              <Search size={16} />
-              <span>Search markets, countries…</span>
-              <kbd>/</kbd>
-            </Link>
           )}
           <div className="header-tools">
             <div id="tour-clock">
               <GlobalMarketClock />
             </div>
+            <span className="theme-switches">
+              <SkinToggle />
+              <ThemeToggle />
+            </span>
             <button
               className="notification-button"
               aria-label="Notifications"
@@ -198,6 +198,15 @@ export function DashboardShell({
                         : ""}
                   </span>
                   <Link href="/wallet">Wallet details</Link>
+                  <a
+                    className="account-explorer"
+                    href={`https://sepolia.etherscan.io/address/${wallet.address}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setAccount(false)}
+                  >
+                    View on Sepolia Etherscan <ExternalLink size={13} />
+                  </a>
                   <Link href="/onboarding" onClick={() => setAccount(false)}>
                     Review preferences
                   </Link>

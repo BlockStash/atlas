@@ -1,4 +1,8 @@
 import { paperRouter } from "./paper/router.js";
+import { strategiesRouter } from "./strategies/router.js";
+import { StrategyRepository } from "./strategies/repository.js";
+import { StrategyError, StrategyService } from "./strategies/service.js";
+import { dirname, join } from "node:path";
 import { protocolRouter } from "./protocol/router.js";
 import { intentRouter } from "./intent/router.js";
 import { IntentError } from "./intent/types.js";
@@ -56,6 +60,8 @@ export interface AppOptions {
   portfolioRead?: (address: string) => Promise<PortfolioSnapshot>;
   /** Inject an intent engine (tests). Defaults to a lazily created env-configured engine. */
   intents?: IntentEngine;
+  /** Strategy marketplace SQLite file. Defaults to strategies.sqlite next to dataFile. */
+  strategiesFile?: string;
 }
 const addressSchema = z
   .string()
@@ -340,6 +346,18 @@ export function createApp(options: AppOptions) {
       .set("Cache-Control", "no-store")
       .json((await store.status?.()) ?? { driver: "local", ready: true });
   });
+  app.get("/api/storage/arkiv", authenticated, async (_req, res) => {
+    const wallet = res.locals.wallet as WalletSession;
+    res.set("Cache-Control", "no-store");
+    res.json(
+      (await (store as ProfileRepository).activity?.(wallet.address)) ?? {
+        driver: "local",
+        ready: true,
+        message:
+          "Profiles are stored locally. Set PROFILE_STORE=arkiv to store them on Arkiv.",
+      },
+    );
+  });
   app.post("/api/profile/ens", authenticated, async (req, res) => {
     const wallet = res.locals.wallet as WalletSession;
     if (wallet.demo)
@@ -585,6 +603,32 @@ export function createApp(options: AppOptions) {
     }
   });
   app.use("/api/protocol", protocolRouter());
+  const strategies = new StrategyService(
+    new StrategyRepository(
+      options.strategiesFile ??
+        join(dirname(options.dataFile), "strategies.sqlite"),
+    ),
+    now,
+  );
+  app.use(
+    "/api/strategies",
+    strategiesRouter({
+      service: strategies,
+      limit,
+      production: options.production,
+      // Reads work signed out; a valid session adds the wallet's private strategies.
+      viewer: async (res) => {
+        const token = res.req.cookies[COOKIE] as string | undefined;
+        const session = token ? sessions.get(token) : undefined;
+        if (!session || session.expires <= now()) return undefined;
+        const profile = await store.get(session.wallet.address);
+        return {
+          address: session.wallet.address,
+          ensName: profile.ensName ?? null,
+        };
+      },
+    }),
+  );
   app.use("/api/paper", authenticated, paperRouter(options.production));
   let engine = options.intents;
   app.use(
@@ -628,6 +672,10 @@ export function createApp(options: AppOptions) {
           details: error.details,
         },
       });
+      return;
+    }
+    if (error instanceof StrategyError) {
+      fail(res, error.status, error.code, error.message);
       return;
     }
     if (error instanceof VerificationError) {

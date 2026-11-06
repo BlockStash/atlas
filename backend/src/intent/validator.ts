@@ -223,13 +223,22 @@ export function validateIntent(
     )
       add("DUPLICATE_EXIT", `Duplicate ${e.type}.`, "exitConditions");
     seen.add(e.type);
-    if (e.type === "TIME_EXIT" && c.validAfter && e.timestamp <= c.validAfter)
+    if (
+      e.type === "TIME_EXIT" &&
+      e.holdSeconds === undefined &&
+      c.validAfter &&
+      e.timestamp <= c.validAfter
+    )
       add(
         "EXIT_BEFORE_START",
         "Time exit is before the strategy starts.",
         "exitConditions",
       );
-    if (e.type === "TIME_EXIT" && e.timestamp <= ctx.now)
+    if (
+      e.type === "TIME_EXIT" &&
+      e.holdSeconds === undefined &&
+      e.timestamp <= ctx.now
+    )
       add(
         "EXIT_ALREADY_PASSED",
         "Time exit has already passed.",

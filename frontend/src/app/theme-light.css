@@ -1,0 +1,172 @@
+/* Hand-tuned light-mode fixes, applied after theme-light.generated.css. */
+:root[data-theme="light"] {
+  --bg: #f3f5f9;
+  --panel: #ffffff;
+  --border: #0f172a14;
+  --muted: #5a6880;
+  --text: #111827;
+  --blue: #2f5bd3;
+  --green: #138a68;
+  --red: #c2414f;
+}
+:root[data-theme="light"] body {
+  background: var(--bg);
+}
+
+/* Cards read as white sheets with a soft edge instead of tinted gradients. */
+:root[data-theme="light"] .panel {
+  background: #ffffff;
+  border-color: #0f172a14;
+  box-shadow:
+    0 1px 2px #0f172a0a,
+    0 6px 20px #0f172a08;
+}
+
+/* Primary actions: solid brand blue with white text. */
+:root[data-theme="light"] .primary,
+:root[data-theme="light"] .btn.primary,
+:root[data-theme="light"] .ai-send,
+:root[data-theme="light"] .filter-chip.active,
+:root[data-theme="light"] .ai-modes button.active {
+  background: linear-gradient(135deg, #2f5bd3, #6a4fd8);
+  border-color: #2f5bd3;
+  color: #ffffff;
+  box-shadow: 0 4px 14px #2f5bd333;
+}
+:root[data-theme="light"] .primary:hover,
+:root[data-theme="light"] .btn.primary:hover {
+  background: linear-gradient(135deg, #2a51bf, #5f45c4);
+}
+
+/* Returns and status colours, darkened for contrast on white. */
+:root[data-theme="light"] .positive {
+  color: var(--green);
+}
+:root[data-theme="light"] .negative {
+  color: var(--red);
+}
+
+/* Strategy icons are pastel on dark; deepen them so the glyphs read on white. */
+:root[data-theme="light"] .strategy-icon {
+  filter: saturate(1.6) brightness(0.68);
+}
+
+/* ENS chips */
+:root[data-theme="light"] .ens-chip {
+  color: #2546a8;
+  border-color: #2f5bd340;
+  background: linear-gradient(135deg, #2f5bd312, #13a37a10);
+}
+:root[data-theme="light"] .ens-chip.handle {
+  color: #5b3fb8;
+  border-color: #6a4fd833;
+  background: #6a4fd80d;
+}
+:root[data-theme="light"] .ens-chip.creator-link:hover,
+:root[data-theme="light"] .ens-chip.creator-link:focus-visible {
+  color: #ffffff;
+  border-color: #2f5bd3;
+  background: linear-gradient(135deg, #2f5bd3, #13a37a);
+  box-shadow:
+    0 0 0 3px #2f5bd326,
+    0 4px 14px #2f5bd333;
+}
+:root[data-theme="light"] .ens-chip.creator-link:hover > svg {
+  color: #ffffff;
+}
+
+/* Atlas AI home: softer aurora, white prompt card, gradient headline kept vivid. */
+:root[data-theme="light"] .ai-blob {
+  opacity: 0.22;
+}
+:root[data-theme="light"] .ai-blob.three {
+  opacity: 0.15;
+}
+:root[data-theme="light"] .ai-prompt-inner,
+:root[data-theme="light"] .ai-results,
+:root[data-theme="light"] .ai-results-empty {
+  background: #ffffffeb;
+}
+:root[data-theme="light"] .ai-prompt {
+  box-shadow:
+    0 20px 50px #0f172a1f,
+    0 0 60px #6a4fd81a;
+}
+:root[data-theme="light"] .ai-gradient-text,
+:root[data-theme="light"] .ai-stats strong {
+  background: linear-gradient(90deg, #2f5bd3, #6a4fd8 50%, #13a37a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+:root[data-theme="light"] .ai-stats > div,
+:root[data-theme="light"] .ai-path,
+:root[data-theme="light"] .ai-rec {
+  background: #ffffff;
+}
+:root[data-theme="light"] .ai-path-icon {
+  background: linear-gradient(135deg, #2f5bd3, #6a4fd8);
+  color: #ffffff;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  transition:
+    color 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+}
+.theme-toggle:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--blue) 40%, transparent);
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
+}
+
+:root[data-theme="light"] .card-pin {
+  color: #50617a;
+}
+:root[data-theme="light"] .card-pin:hover {
+  background: #0000000d;
+  color: #1f3352;
+}
+:root[data-theme="light"] .card-pin.pinned {
+  color: #2f62c8;
+  background: #2f62c81a;
+}
+:root[data-theme="light"] .market-card.pinned,
+:root[data-theme="light"] .balance-card.pinned {
+  border-color: #2f62c866;
+}
+:root[data-theme="light"] .studio-page .studio-bubble.error {
+  border-color: #ff435750;
+  background: #ede4e780;
+  color: #291416;
+}
+:root[data-theme="light"] .studio-plan-loading {
+  color: #50617a;
+}
+:root[data-theme="light"] .ai-idea-label {
+  color: #596e8c;
+}
+:root[data-theme="light"] .ai-idea-badge {
+  border-color: #4980ff55;
+  background: #4980ff12;
+  color: #1c2c48;
+}
+:root[data-theme="light"] .ai-idea-badge:hover,
+:root[data-theme="light"] .ai-idea-badge:focus-visible {
+  background: #4980ff26;
+}
+:root[data-theme="light"] .ai-idea-dots i {
+  background: #0000001f;
+}
+:root[data-theme="light"] .ai-idea-dots i.on {
+  background: #2f62c8;
+}

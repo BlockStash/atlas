@@ -13,6 +13,7 @@ import {
   type ProtocolConfig,
   type TxState,
 } from "@/lib/protocol/client";
+import { readChainCache, writeChainCache } from "@/lib/chain-cache";
 export const fmt = (value: bigint, decimals = 6, digits = 4) =>
   Number(formatUnits(value, decimals)).toLocaleString("en-US", {
     maximumFractionDigits: digits,
@@ -24,6 +25,17 @@ export function useProtocol() {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
   const account = wallet?.address as Address | undefined;
+  // Restore the last protocol read for this wallet from the session before refreshing it.
+  useEffect(() => {
+    const cached = readChainCache<{
+      config: ProtocolConfig;
+      data: Overview | null;
+    }>("protocol", account);
+    if (cached) {
+      setConfig(cached.value.config);
+      setData(cached.value.data);
+    }
+  }, [account]);
   const reload = useCallback(async () => {
     setLoading(true);
     try {
@@ -32,7 +44,11 @@ export function useProtocol() {
       if (cfg.configured) {
         if (!configuredAddresses(cfg))
           throw new Error("Invalid protocol deployment addresses.");
-        if (account) setData(await overview(cfg, account));
+        if (account) {
+          const next = await overview(cfg, account);
+          setData(next);
+          writeChainCache("protocol", account, { config: cfg, data: next });
+        }
       }
       setError("");
     } catch (e) {

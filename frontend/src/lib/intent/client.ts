@@ -95,6 +95,26 @@ export interface Evaluation {
     nextOpen: number | null;
   } | null;
   maxSpendUSDT: string | null;
+  /** Live Sepolia mode: vault funding needed and the MetaMask permission to request. */
+  funding?: Funding;
+}
+export interface Funding {
+  requiredUSDT: string;
+  vaultUSDT: string;
+  walletUSDT: string;
+  shortfallUSDT: string;
+  permission: {
+    tokenAddress: string;
+    allowanceShares: string;
+    delegate: string;
+    delegationManager: string;
+  };
+}
+/** ERC-7715 grant returned by MetaMask, forwarded to the backend at activation. */
+export interface GrantedPermission {
+  context: string;
+  delegationManager: string;
+  allowanceShares: string;
 }
 export type ParseResult =
   | {
@@ -114,7 +134,9 @@ export type ParseResult =
         needsInput?: "price" | "time";
       }[];
     }
-  | { status: "UNSUPPORTED_INTENT"; reason: string };
+  | { status: "UNSUPPORTED_INTENT"; reason: string }
+  /** Multi-asset or crypto request: built in the strategy studio instead. */
+  | { status: "PORTFOLIO_STRATEGY"; reason: string };
 export interface TypedData {
   domain: Record<string, unknown>;
   types: Record<string, { name: string; type: string }[]>;
@@ -151,6 +173,7 @@ export interface IntentView {
     quantity: string;
     slippage_bps: number;
     fee_usdt: string;
+    notional_usdt?: string;
     tx_hash: string | null;
   }[];
   error: { code: string; message: string } | null;
@@ -179,17 +202,128 @@ export interface IntentConfig {
   executionMode: "SIMULATED" | "ONCHAIN";
   aiParser: "ai" | "rules";
   demoControls: boolean;
+  onchain: { executor: string; chainId: number } | null;
+}
+
+export type BacktestDays = 30 | 90 | 180;
+export type BacktestExit =
+  | "TAKE_PROFIT"
+  | "STOP_LOSS"
+  | "PRICE_EXIT"
+  | "TIME_EXIT"
+  | "OPEN"
+  | "NOT_TRIGGERED";
+export interface Backtest {
+  days: number;
+  runs: number;
+  annualVolatility: number;
+  band: { day: number; p10: number; p50: number; p90: number }[];
+  sample: {
+    path: { day: number; price: number }[];
+    entry: { day: number; price: number } | null;
+    exit: { day: number; price: number; reason: BacktestExit } | null;
+    pnlUSDT: number;
+  };
+  levels: {
+    current: number;
+    entryTrigger: number | null;
+    takeProfit: number | null;
+    stopLoss: number | null;
+  };
+  stats: {
+    triggeredPct: number;
+    takeProfitPct: number;
+    stopLossPct: number;
+    otherExitPct: number;
+    stillOpenPct: number;
+    winRatePct: number;
+    expectedPnlUSDT: number;
+    medianPnlUSDT: number;
+    p10PnlUSDT: number;
+    p90PnlUSDT: number;
+    avgHoldDays: number | null;
+  };
+  disclaimer: string;
+}
+export interface PaperPreview {
+  order: {
+    id: string;
+    quantity: string;
+    draft: {
+      symbol: string;
+      takeProfitBps: number;
+      stopLossBps: number;
+      maxSlippageBps: number;
+    };
+  };
+  confirmationToken: string;
+  estimatedFill: string | null;
+  defaults: string[];
+}
+/** Paper Trading bridge: an Atlas AI plan becomes a paper order, then is explicitly confirmed. */
+export const paperBridge = {
+  preview: (body: {
+    symbol: string;
+    notionalUSDT: number;
+    maxSlippageBps?: number;
+    takeProfitBps?: number;
+    stopLossBps?: number;
+  }) => api<PaperPreview>("/paper/from-intent", body),
+  confirm: (id: string, confirmationToken: string) =>
+    api<unknown>(`/paper/${id}/confirm`, {
+      confirmed: true,
+      confirmationToken,
+    }),
+};
+
+export interface AtlasTrade {
+  id: string;
+  intentId: string;
+  kind: "ENTRY" | "EXIT";
+  side: "BUY" | "SELL";
+  symbol: string;
+  companyName: string;
+  market: string;
+  quantity: string;
+  priceUSDT: string;
+  notionalUSDT: string;
+  feeUSDT: string;
+  slippageBps: number;
+  executedAt: number;
+  txHash: string | null;
+  mode: string;
+  /** Sepolia transactions behind this fill: pull, buy, change / sell, payout. */
+  transactions?: { step: string; txHash: string }[];
+  prompt: string;
+  exitReason: string | null;
+  realizedPnlUSDT: string | null;
+}
+export interface TradeHistory {
+  trades: AtlasTrade[];
+  summary: {
+    count: number;
+    openPositions: number;
+    volumeUSDT: string;
+    feesUSDT: string;
+    realizedPnlUSDT: string;
+  };
 }
 
 export const intentApi = {
+  trades: () => api<TradeHistory>("/intents/trades"),
+  backtest: (intent: Intent, days: BacktestDays) =>
+    api<{ backtest: Backtest }>("/intents/backtest", { intent, days }),
   config: () => api<IntentConfig>("/intents/config"),
   parse: (prompt: string) => api<ParseResult>("/intents/parse", { prompt }),
   evaluate: (intent: Intent) =>
     api<Evaluation>("/intents/simulate", { intent }),
   create: (intent: Intent, parseHash?: string) =>
     api<CreateResult>("/intents", { intent, parseHash }),
-  activate: (id: string, signature: string) =>
-    api<IntentView>(`/intents/${id}/activate`, { signature }),
+  activate: (id: string, signature: string, permission?: GrantedPermission) =>
+    api<IntentView>(`/intents/${id}/activate`, {
+      signature,
+      ...(permission ? { permission } : {}),
+    }),
   cancel: (id: string) => api<IntentView>(`/intents/${id}/cancel`, {}),
   close: (id: string) => api<IntentView>(`/intents/${id}/close`, {}),
   list: () => api<{ intents: IntentView[] }>("/intents"),
@@ -205,6 +339,79 @@ export const intentApi = {
     api<{ ok: true }>("/intents/demo/market", { open }),
   demoTick: () => api<{ processed: number }>("/intents/demo/tick", {}),
 };
+
+/**
+ * Ask MetaMask (13.23+, smart account) to grant the Atlas executor an aUSDT allowance via
+ * ERC-7715. MetaMask shows the token, amount, recipient and expiry; nothing else is delegated.
+ */
+export async function requestAusdtPermission(
+  account: string,
+  funding: Funding,
+  expiry: number,
+  symbol: string,
+): Promise<GrantedPermission> {
+  const [{ createWalletClient, custom }, { erc7715ProviderActions }] =
+    await Promise.all([
+      import("viem"),
+      import("@metamask/smart-accounts-kit/actions"),
+    ]);
+  const provider = (await walletClient()).getProvider();
+  const accounts = (await provider.request({
+    method: "eth_accounts",
+  })) as string[];
+  if (!accounts.some((a) => a.toLowerCase() === account.toLowerCase()))
+    throw new Error(
+      `Select ${account.slice(0, 6)}…${account.slice(-4)} in MetaMask (the account you signed in with) and try again.`,
+    );
+  const client = createWalletClient({
+    transport: custom(provider as Parameters<typeof custom>[0]),
+  }).extend(erc7715ProviderActions());
+  const p = funding.permission;
+  try {
+    const [granted] = await client.requestExecutionPermissions([
+      {
+        chainId: 11155111,
+        from: account as `0x${string}`,
+        expiry,
+        to: p.delegate as `0x${string}`,
+        permission: {
+          type: "erc20-token-allowance",
+          isAdjustmentAllowed: false,
+          data: {
+            tokenAddress: p.tokenAddress as `0x${string}`,
+            allowanceAmount: BigInt(p.allowanceShares),
+            justification: `Atlas AI: buy ${symbol} for up to ${funding.requiredUSDT} USDT with your aUSDT, then return the proceeds.`,
+          },
+        },
+      },
+    ]);
+    if (!granted?.context)
+      throw new Error("MetaMask did not grant the aUSDT permission.");
+    const data = granted.permission.data as {
+      allowanceAmount?: bigint | string;
+    };
+    return {
+      context: granted.context,
+      delegationManager: granted.delegationManager,
+      allowanceShares: String(data.allowanceAmount ?? p.allowanceShares),
+    };
+  } catch (e) {
+    const err = e as { code?: number; message?: string };
+    if (err.code === 4001)
+      throw new Error(
+        "You declined the aUSDT permission. Your strategy was not activated.",
+      );
+    if (
+      err.code === -32601 ||
+      err.code === 4200 ||
+      /not (supported|found)|does not exist/i.test(err.message ?? "")
+    )
+      throw new Error(
+        "Your MetaMask does not support Advanced Permissions yet. Update MetaMask to 13.23 or later and use a MetaMask smart account.",
+      );
+    throw e;
+  }
+}
 
 /** Ask the wallet for an EIP-712 signature. The user sees every field of the authorization. */
 export async function signAuthorization(
@@ -274,7 +481,7 @@ export function timeLeft(
 export function describeEntry(c: EntryCondition, market: string) {
   switch (c.type) {
     case "MARKET_OPEN":
-      return `${market} is open`;
+      return "immediately (Atlas markets are open 24/7)";
     case "PRICE_BELOW":
       return `Price below ${usd(c.priceUSDT)}`;
     case "PRICE_ABOVE":
@@ -325,3 +532,18 @@ export const TIMELINE: { type: string; label: string }[] = [
   { type: "POSITION_CLOSED", label: "Position closed" },
 ];
 export const DEMO_UI = process.env.NEXT_PUBLIC_INTENT_DEMO_MODE === "true";
+
+/**
+ * Execution rows come straight from the database as fixed-point integers: quantity has 18
+ * decimals and USDT amounts have 6. Prices are already decimal strings.
+ */
+export const fromUnits = (raw: string | undefined | null, decimals: number) =>
+  raw ? Number(raw) / 10 ** decimals : 0;
+export const execQty = (e: IntentView["executions"][number]) =>
+  fromUnits(e.quantity, 18);
+export const execFee = (e: IntentView["executions"][number]) =>
+  fromUnits(e.fee_usdt, 6);
+export const execValue = (e: IntentView["executions"][number]) =>
+  e.notional_usdt !== undefined
+    ? fromUnits(e.notional_usdt, 6)
+    : execQty(e) * Number(e.price_usdt);

@@ -216,7 +216,7 @@ export function PaperDashboard() {
             <span className="eyebrow">DEVELOPMENT SIMULATOR</span>
             <h1>Paper Trading</h1>
             <p>
-              Test intent strategies with a controlled market clock and an
+              Test Atlas AI strategies with a controlled market clock and an
               isolated balance.
             </p>
           </div>
@@ -473,7 +473,7 @@ export function PaperDashboard() {
                   aria-label="Natural language paper strategy"
                 />
                 <button disabled={busy} onClick={parse}>
-                  Preview paper intent
+                  Preview paper trade
                 </button>
                 {question && (
                   <p role="status">

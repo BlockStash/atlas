@@ -200,6 +200,13 @@ export function marketState(exchange: string, nowS: number): MarketState {
     : ("OUTSIDE_HOURS" as const);
   return { ...base, open: false, nextOpen, nextClose: null, reason };
 }
+/**
+ * Atlas tokenized stocks trade 24/7: every market is treated as open, so plans execute as soon
+ * as their own conditions hold. Set MARKETS_ALWAYS_OPEN=false to enforce exchange calendars.
+ */
+export const marketsAlwaysOpen = () =>
+  process.env.MARKETS_ALWAYS_OPEN !== "false";
+
 export const isMarketOpen = (exchange: string, nowS: number) =>
   marketState(exchange, nowS).open;
 

@@ -11,7 +11,7 @@ import { arkivGasGuard, ArkivGasGuardError } from "./arkiv-gas.js";
 import { privateKeyToAccount } from "viem/accounts";
 import { normalizeProfile } from "./profile-migrations.js";
 import { readFile } from "node:fs/promises";
-import type { ProfileRepository } from "./profile-repository.js";
+import type { ArkivActivity, ProfileRepository } from "./profile-repository.js";
 import { defaultProfile, type Profile } from "./types.js";
 import { profileCrypto } from "./profile-crypto.js";
 import { IdentityClaims } from "./identity-claims.js";
@@ -121,6 +121,168 @@ export class ArkivProfileStore implements ProfileRepository {
     if (result.entities.length > 1)
       throw new Error("Duplicate Arkiv profile entities require repair.");
     return result.entities[0];
+  }
+  /** Everything Atlas keeps in Arkiv for this wallet: the entity, its lifetime and a safe view of its contents. */
+  async activity(address: string): Promise<ArkivActivity> {
+    try {
+      await this.ensureChain();
+      const chainId = this.options.chainId;
+      const found = await this.publicClient
+        .select({
+          $key: true,
+          $owner: true,
+          $creator: true,
+          $createdAt: true,
+          $updatedAt: true,
+          $expiresAt: true,
+          payload: true,
+        } as never)
+        .from(Profiles, { onMismatch: "throw" })
+        .where(
+          and(
+            eq("namespace", this.options.namespace),
+            eq("wallet_tag", this.crypto.walletTag(address)),
+          ),
+        )
+        .ownedBy(this.walletClient.account.address)
+        .createdBy(this.walletClient.account.address)
+        .limit(1)
+        .fetch();
+      const base = {
+        driver: "arkiv",
+        ready: true,
+        signerAddress: this.walletClient.account.address,
+      };
+      const currentBlock = await this.publicClient.getBlockNumber();
+      const network = {
+        name: "Arkiv Rabdi",
+        chainId,
+        currentBlock: currentBlock.toString(),
+      };
+      const row = found.entities[0] as unknown as
+        | {
+            $key: string;
+            $owner: string;
+            $creator: string;
+            $createdAt: bigint | string | number;
+            $updatedAt: bigint | string | number;
+            $expiresAt: bigint | string | number;
+            payload: { value: Hex };
+          }
+        | undefined;
+      if (!row)
+        return {
+          ...base,
+          network,
+          message:
+            "Nothing is stored in Arkiv for this wallet yet. Your profile is saved on your first update.",
+        };
+      const created = BigInt(row.$createdAt),
+        updated = BigInt(row.$updatedAt),
+        expires = BigInt(row.$expiresAt);
+      const tsOf = async (n: bigint) => {
+        try {
+          const b = await this.publicClient.getBlock({ blockNumber: n });
+          return Number(b.timestamp);
+        } catch {
+          return null;
+        }
+      };
+      const [createdTs, updatedTs] = await Promise.all([
+        tsOf(created),
+        tsOf(updated),
+      ]);
+      const nowTs = Math.floor(Date.now() / 1000);
+      // Rabdi block time from the entity's own age; used only to date the future expiry block.
+      const span = Number(currentBlock - created);
+      const blockSeconds =
+        createdTs && span > 0 ? (nowTs - createdTs) / span : null;
+      const expiresTs = blockSeconds
+        ? Math.round(nowTs + Number(expires - currentBlock) * blockSeconds)
+        : null;
+      const iso = (t: number | null) =>
+        t ? new Date(t * 1000).toISOString() : null;
+      const payload = hexToBytes(row.payload.value);
+      const profile = this.decode(address, row.payload.value);
+      const yes = (b: boolean | undefined) => (b ? "Yes" : "No");
+      const stored = [
+        { label: "Wallet", value: profile.walletAddress },
+        { label: "ENS name", value: profile.ensName ?? "Not linked" },
+        {
+          label: "Selected markets",
+          value: profile.selectedMarkets.join(", ") || "None",
+        },
+        { label: "Preferred asset", value: profile.preferredAsset },
+        { label: "Experience level", value: profile.experienceLevel },
+        { label: "Onboarding step", value: String(profile.currentStep) },
+        {
+          label: "Onboarding complete",
+          value: yes(profile.onboardingComplete),
+        },
+        {
+          label: "Product tour complete",
+          value: yes(profile.productTourComplete),
+        },
+        { label: "World ID verified", value: yes(profile.worldIdVerified) },
+        { label: "Passkey verified", value: yes(profile.passkeyVerified) },
+        {
+          label: "Crypto account",
+          value: profile.cryptoAccount ? "Linked" : "Not linked",
+        },
+        { label: "Last profile update", value: profile.updatedAt },
+      ];
+      const events: NonNullable<ArkivActivity["events"]> = [
+        {
+          at: iso(createdTs),
+          block: created.toString(),
+          title: "Profile created in Arkiv",
+          detail: "An encrypted entity was written for your wallet.",
+        },
+      ];
+      if (updated !== created)
+        events.push({
+          at: iso(updatedTs),
+          block: updated.toString(),
+          title: "Profile last updated",
+          detail:
+            "Your preferences or verification state changed and the entity was rewritten with a longer lifetime.",
+        });
+      events.push({
+        at: iso(expiresTs),
+        block: expires.toString(),
+        title:
+          expires > currentBlock
+            ? "Entity expires (estimated)"
+            : "Entity expired",
+        detail: "Any profile update extends this automatically.",
+      });
+      return {
+        ...base,
+        network,
+        entity: {
+          key: row.$key,
+          schema: "atlas.profiles.v1",
+          namespace: this.options.namespace,
+          owner: row.$owner,
+          creator: row.$creator,
+          payloadBytes: payload.length,
+          encrypted: true,
+          createdBlock: created.toString(),
+          updatedBlock: updated.toString(),
+          expiresBlock: expires.toString(),
+          createdAt: iso(createdTs),
+          updatedAt: iso(updatedTs),
+          expiresAt: iso(expiresTs),
+          daysLeft: expiresTs
+            ? Math.max(0, Math.floor((expiresTs - nowTs) / 86400))
+            : null,
+        },
+        stored,
+        events,
+      };
+    } catch (error) {
+      throw this.failure(error);
+    }
   }
   private decode(address: string, payload: Hex) {
     const profile = this.crypto.decrypt<Profile>(address, hexToBytes(payload));
@@ -279,6 +441,9 @@ export class UnavailableProfileStore implements ProfileRepository {
     throw new VerificationError("ARKIV_SETUP_REQUIRED", this.message, 503);
   }
   async status() {
+    return { driver: "arkiv", ready: false, message: this.message };
+  }
+  async activity(): Promise<ArkivActivity> {
     return { driver: "arkiv", ready: false, message: this.message };
   }
 }

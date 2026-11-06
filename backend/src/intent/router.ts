@@ -5,7 +5,9 @@ import type { IntentEngine } from "./wiring.js";
 import type { WalletSession } from "../types.js";
 import type { AtlasTradeIntent } from "./types.js";
 import { strategyHash, strategyBody } from "./canonical.js";
-import { MAX_PROMPT_CHARS } from "./parser.js";
+import { MAX_PROMPT_CHARS, portfolioHint } from "./parser.js";
+import { BACKTEST_PERIODS, backtestIntent } from "./backtest.js";
+import { unsupportedAssets, unsupportedMessage } from "../strategies/core.js";
 
 const intentBody = z
   .object({
@@ -54,6 +56,9 @@ export function intentRouter() {
       limits: c.limits,
       domain: c.domain,
       demoControls: c.demoMode,
+      onchain: c.onchain
+        ? { executor: c.onchain.address, chainId: 11155111 }
+        : null,
     });
   });
 
@@ -67,6 +72,21 @@ export function intentRouter() {
       })
       .strict()
       .parse(req.body);
+    // Only listed tokenized stocks (funded in aUSDT/USDT) can be traded.
+    const unsupported = unsupportedAssets(prompt);
+    if (unsupported.length) {
+      res.json({
+        status: "UNSUPPORTED_INTENT",
+        reason: unsupportedMessage(unsupported),
+        unsupported,
+      });
+      return;
+    }
+    const hint = portfolioHint(prompt);
+    if (hint) {
+      res.json({ status: "PORTFOLIO_STRATEGY", reason: hint });
+      return;
+    }
     const out = await ctx(res).service.parse(prompt, user(res));
     res.json({
       ...out,
@@ -90,6 +110,42 @@ export function intentRouter() {
       .parse(req.body);
     res.json(await ctx(res).service.evaluate(toIntent(intent, user(res))));
   });
+  /** Scenario backtest of the plan's exact rules over synthetic paths, before anything is signed. */
+  r.post("/backtest", async (req, res) => {
+    const { intent, days } = z
+      .object({
+        intent: intentBody,
+        days: z
+          .number()
+          .int()
+          .refine((d) => (BACKTEST_PERIODS as readonly number[]).includes(d))
+          .default(90),
+      })
+      .strict()
+      .parse(req.body);
+    const ev = await ctx(res).service.evaluate(toIntent(intent, user(res)));
+    const sim = ev.simulation,
+      price = Number(ev.price?.priceUSDT),
+      notional = Number(sim?.estimatedNotionalUSDT);
+    if (!sim || !(price > 0) || !(notional > 0))
+      throw new IntentError(
+        "INVALID_INTENT",
+        "Fix the issues in this plan before backtesting it.",
+        422,
+      );
+    res.json({
+      backtest: backtestIntent({
+        intent: ev.intent,
+        price,
+        notional,
+        feeBps: (Number(sim.estimatedFeesUSDT) / notional) * 10_000,
+        slippageBps: sim.estimatedSlippageBps,
+        days: days as (typeof BACKTEST_PERIODS)[number],
+        seedKey: `${ev.strategyHash}:${days}`,
+        now: ctx(res).ctx.now() * 1000, // Engine clock (seconds), so demo/test clocks line up.
+      }),
+    });
+  });
   r.post("/", async (req, res) => {
     const { intent, parseHash } = z
       .object({
@@ -110,6 +166,7 @@ export function intentRouter() {
   r.get("/", (_req, res) =>
     res.json({ intents: ctx(res).service.list(user(res)) }),
   );
+  r.get("/trades", (_req, res) => res.json(ctx(res).service.trades(user(res))));
   r.get("/notifications", (req, res) =>
     res.json({
       notifications: ctx(res).service.notifications(
@@ -159,8 +216,25 @@ export function intentRouter() {
     }),
   );
   r.post("/:id/activate", async (req, res) => {
-    const { signature } = z
-      .object({ signature: z.string().min(4).max(1000) })
+    const { signature, permission } = z
+      .object({
+        signature: z.string().min(4).max(1000),
+        /** ERC-7715 grant from MetaMask (live execution only). */
+        permission: z
+          .object({
+            context: z
+              .string()
+              .regex(/^0x[0-9a-fA-F]+$/)
+              .max(20_000),
+            delegationManager: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+            allowanceShares: z
+              .string()
+              .regex(/^\d{1,78}$/)
+              .optional(),
+          })
+          .strict()
+          .optional(),
+      })
       .strict()
       .parse(req.body);
     const wallet = res.locals.wallet as WalletSession;
@@ -170,6 +244,7 @@ export function intentRouter() {
         user(res),
         signature,
         wallet.demo,
+        permission,
       ),
     );
   });

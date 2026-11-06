@@ -13,6 +13,7 @@ import {
   type TransferPreview,
 } from "@/lib/transactions";
 import { api } from "@/lib/api";
+import { readChainCache, writeChainCache } from "@/lib/chain-cache";
 import type { UserOnboardingState } from "@/lib/types";
 import { WorldIDVerification } from "@/components/world-id/verification";
 import { ENSName } from "./ens-name";
@@ -48,10 +49,15 @@ export function SepoliaWallet() {
     let active = true;
     if (!address || wallet?.demo) return;
     setBalanceError("");
+    const cached = readChainCache<string>("eth-balance", address);
+    if (cached) setBalance(cached.value);
     sepoliaClient
       .getBalance({ address: address as `0x${string}` })
       .then((value) => {
-        if (active) setBalance(formatEther(value));
+        if (!active) return;
+        const formatted = formatEther(value);
+        setBalance(formatted);
+        writeChainCache("eth-balance", address, formatted);
       })
       .catch(() => {
         if (active)

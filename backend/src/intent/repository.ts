@@ -58,6 +58,15 @@ export interface ExecutionRow {
   tx_hash: string | null;
   executed_at: number;
 }
+export interface PermissionRow {
+  intent_id: string;
+  context: string;
+  delegation_manager: string;
+  token: string;
+  allowance: string;
+  expiry: number | null;
+  created_at: number;
+}
 export interface EventRow {
   id: number;
   intent_id: string;
@@ -135,7 +144,15 @@ CREATE TABLE IF NOT EXISTS notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_address TEXT NOT NULL, intent_id TEXT NOT NULL,
   kind TEXT NOT NULL, message TEXT NOT NULL, created_at INTEGER NOT NULL, read INTEGER NOT NULL DEFAULT 0
 ) STRICT;
-CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_address, id);`);
+CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_address, id);
+CREATE TABLE IF NOT EXISTS intent_permissions (
+  intent_id TEXT PRIMARY KEY, context TEXT NOT NULL, delegation_manager TEXT NOT NULL,
+  token TEXT NOT NULL, allowance TEXT NOT NULL, expiry INTEGER, created_at INTEGER NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS onchain_steps (
+  execution_id TEXT NOT NULL, step TEXT NOT NULL, tx_hash TEXT NOT NULL, data TEXT,
+  created_at INTEGER NOT NULL, PRIMARY KEY(execution_id, step)
+) STRICT;`);
   }
   close() {
     this.db.close();
@@ -157,6 +174,59 @@ CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_address, id)
       this.db.exec("ROLLBACK");
       throw e;
     }
+  }
+
+  /** ERC-7715 permission (aUSDT allowance) the user granted the Atlas executor for one intent. */
+  savePermission(p: PermissionRow) {
+    this.db
+      .prepare(
+        "INSERT OR REPLACE INTO intent_permissions VALUES(?,?,?,?,?,?,?)",
+      )
+      .run(
+        p.intent_id,
+        p.context,
+        p.delegation_manager,
+        p.token,
+        p.allowance,
+        p.expiry,
+        p.created_at,
+      );
+  }
+  permission(intentId: string) {
+    return this.one<PermissionRow>(
+      "SELECT * FROM intent_permissions WHERE intent_id=?",
+      intentId,
+    );
+  }
+  /** Sent transaction per execution step, recorded before waiting so a retry never resends it. */
+  step(executionId: string, step: string) {
+    return this.one<{ tx_hash: string; data: string | null }>(
+      "SELECT tx_hash, data FROM onchain_steps WHERE execution_id=? AND step=?",
+      executionId,
+      step,
+    );
+  }
+  saveStep(
+    executionId: string,
+    step: string,
+    txHash: string,
+    data: unknown,
+    now: number,
+  ) {
+    this.db
+      .prepare("INSERT OR REPLACE INTO onchain_steps VALUES(?,?,?,?,?)")
+      .run(executionId, step, txHash, JSON.stringify(data ?? null), now);
+  }
+  deleteStep(executionId: string, step: string) {
+    this.db
+      .prepare("DELETE FROM onchain_steps WHERE execution_id=? AND step=?")
+      .run(executionId, step);
+  }
+  steps(intentId: string) {
+    return this.all<{ execution_id: string; step: string; tx_hash: string }>(
+      "SELECT execution_id, step, tx_hash FROM onchain_steps WHERE execution_id LIKE ? AND tx_hash <> '' ORDER BY created_at",
+      `${intentId}:%`,
+    );
   }
 
   nextNonce(user: string): number {
@@ -402,6 +472,8 @@ CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_address, id)
           ["EXECUTING"],
           "POSITION_OPEN",
           a.now,
+          // A fill that succeeds after retries clears the earlier error.
+          { error_code: null, error_message: null, retry_count: 0 },
         )
       )
         return false;
@@ -484,6 +556,8 @@ CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_address, id)
           ["EXIT_TRIGGERED"],
           "COMPLETED",
           a.now,
+          // A fill that succeeds after retries clears the earlier error.
+          { error_code: null, error_message: null, retry_count: 0 },
         )
       )
         return false;

@@ -1,3 +1,4 @@
+import { marketsAlwaysOpen } from "./market-engine.js";
 import type {
   AtlasTradeIntent,
   EntryCondition,
@@ -12,7 +13,7 @@ const usd = (p: string) => `$${p} USDT`;
 export function describeEntry(c: EntryCondition, market: string): string {
   switch (c.type) {
     case "MARKET_OPEN":
-      return `${market} is open`;
+      return marketsAlwaysOpen() ? "the plan is active" : `${market} is open`;
     case "PRICE_BELOW":
       return `price is below ${usd(c.priceUSDT)}`;
     case "PRICE_ABOVE":
@@ -36,7 +37,9 @@ export function describeExit(c: ExitCondition): string {
     case "PRICE_BELOW":
       return `the price falls to ${usd(c.priceUSDT)}`;
     case "TIME_EXIT":
-      return `${when(c.timestamp)}`;
+      return c.holdSeconds
+        ? `${c.holdSeconds} seconds after the buy fills`
+        : `${when(c.timestamp)}`;
   }
 }
 export const describeAllocation = (
@@ -55,7 +58,10 @@ export const describeAllocation = (
 export function summarizeIntent(i: AtlasTradeIntent): string {
   const c = i.constraints;
   const name = `${i.asset.companyName} (${i.asset.symbol})`;
-  const entry = i.entryConditions.map((e) => describeEntry(e, i.asset.market));
+  // With 24/7 markets a market-open entry means "now", so it isn't worth waiting on in words.
+  const entry = i.entryConditions
+    .filter((e) => !(e.type === "MARKET_OPEN" && marketsAlwaysOpen()))
+    .map((e) => describeEntry(e, i.asset.market));
   const exits = i.exitConditions.map(describeExit);
   const parts: string[] = [];
   if (i.side === "BUY") {
@@ -67,7 +73,10 @@ export function summarizeIntent(i: AtlasTradeIntent): string {
       `Atlas will ${entry.length ? `wait until ${entry.join(" and ")}, then ` : ""}sell ${describeAllocation(i.allocation, i.side)} of ${name} when ${exits.length ? exits.join(" or ") : "triggered"}.`,
     );
   }
-  parts.push("Atlas always requires the exchange to be open before it trades.");
+  if (!marketsAlwaysOpen())
+    parts.push(
+      "Atlas always requires the exchange to be open before it trades.",
+    );
   if (c.maxSlippageBps !== undefined)
     parts.push(
       `It will not execute if estimated slippage is above ${pct(c.maxSlippageBps)}.`,

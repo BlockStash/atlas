@@ -23,6 +23,7 @@ import {
   regionAtlasOpen,
 } from "@/lib/protocol/stock-sessions";
 import { ENSIdentity } from "@/components/wallet/ens-identity";
+import { ArkivActivity } from "@/components/wallet/arkiv-activity";
 import { SepoliaWallet } from "@/components/wallet/sepolia-wallet";
 import { DashboardShell } from "./shell";
 import { CryptoMarket } from "./crypto-market";
@@ -31,6 +32,7 @@ import { useAtlas } from "@/components/atlas/provider";
 import { MarketCard, Ticker } from "@/components/atlas/ui";
 import { markets } from "@/lib/data";
 import { api } from "@/lib/api";
+import { usePins } from "@/lib/pins";
 function WelcomeTour() {
   const { state, update } = useAtlas();
   const [started, setStarted] = useState(false),
@@ -132,6 +134,7 @@ export function Dashboard({
 }) {
   const { wallet, state, toast, ready } = useAtlas();
   const sessions = useStockSessions();
+  const marketPins = usePins("overview-markets", wallet?.address);
   const [marketData, setMarketData] = useState<MarketPreference[]>(markets);
   const [error, setError] = useState(""),
     [query, setQuery] = useState(""),
@@ -179,12 +182,19 @@ export function Dashboard({
       alive = false;
     };
   }, [ready, wallet, retry]);
-  const sorted = [...marketData]
-    .sort(
-      (a, b) =>
-        Number(state.selectedMarkets.includes(b.id)) -
-        Number(state.selectedMarkets.includes(a.id)),
-    )
+  const bySelection = [...marketData].sort(
+    (a, b) =>
+      Number(state.selectedMarkets.includes(b.id)) -
+      Number(state.selectedMarkets.includes(a.id)),
+  );
+  // On the Overview, pinned markets come first.
+  const sorted = (
+    view === "dashboard"
+      ? marketPins.sort(bySelection, (m) => m.id)
+      : bySelection
+  )
+    // Crypto has its own tab on /markets, so the Global markets list shows stock exchanges only.
+    .filter((m) => view !== "markets" || m.id !== "crypto")
     .filter((m) =>
       `${m.name} ${m.exchange} ${m.index}`
         .toLowerCase()
@@ -248,7 +258,9 @@ export function Dashboard({
             </button>
           </div>
         )}
-        {(view === "dashboard" || view === "portfolio") && <OnchainPortfolio />}
+        {(view === "dashboard" || view === "portfolio") && (
+          <OnchainPortfolio pinnable={view === "dashboard"} />
+        )}
         {view === "markets" && (
           <div className="ens-tabs market-tabs" role="tablist">
             {(
@@ -316,6 +328,10 @@ export function Dashboard({
                   }
                   selected={state.selectedMarkets.includes(m.id)}
                   onClick={() => openMarket(m.id)}
+                  {...(view === "dashboard" && {
+                    pinned: marketPins.isPinned(m.id),
+                    onPin: () => marketPins.toggle(m.id),
+                  })}
                 />
               ))}
             </div>
@@ -370,6 +386,7 @@ export function Dashboard({
             <div className="panel ens-wallet-panel">
               <ENSIdentity />
             </div>
+            <ArkivActivity />
             <SepoliaWallet />
             <OnchainPortfolio view="wallet" />
             <div className="wallet-explanation panel">

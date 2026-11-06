@@ -90,7 +90,14 @@ export const exitConditionSchema = z.discriminatedUnion("type", [
   z
     .object({ type: z.literal("PRICE_BELOW"), priceUSDT: decimalString })
     .strict(),
-  z.object({ type: z.literal("TIME_EXIT"), timestamp: unixSeconds }).strict(),
+  z
+    .object({
+      type: z.literal("TIME_EXIT"),
+      timestamp: unixSeconds,
+      /** Hold relative to the actual entry fill ("sell 10 seconds after buying"); timestamp is only the preview estimate. */
+      holdSeconds: z.number().int().positive().max(31_536_000).optional(),
+    })
+    .strict(),
 ]);
 export type ExitCondition = z.infer<typeof exitConditionSchema>;
 

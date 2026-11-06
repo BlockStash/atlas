@@ -58,6 +58,31 @@ Profile:
 
 `PUT /profile` permits only selectedMarkets, preferredAsset, experienceLevel, currentStep, onboardingComplete and productTourComplete. The wallet identity and verification flags are server-owned. Completing onboarding requires server-recorded verification. Preferences use the configured ProfileRepository. The Arkiv adapter stores encrypted entities; the explicit local adapter uses serialized atomic file replacement under DATA_FILE (default data/profiles.json, ignored by Git).
 
+## Strategy marketplace (`/api/strategies`)
+
+Backs the Atlas AI home, Explore, My strategies, creator pages and the strategy studio. Data lives in
+`data/strategies.sqlite` (override with `strategiesFile`), seeded once with the demo marketplace.
+
+| Method       | Path                            | Auth              | Purpose                                                                        |
+| ------------ | ------------------------------- | ----------------- | ------------------------------------------------------------------------------ |
+| GET          | `/`                             | optional          | Public strategies + your private ones, your positions, `creatorFeeBps`         |
+| GET          | `/:id`                          | optional          | One strategy (private ones 404 for everyone but the creator)                   |
+| GET          | `/creators/:handle`             | optional          | Creator profile by ENS name or address, their strategies and forks by others   |
+| POST         | `/generate` · `/validate`       | session · none    | Prompt → `atlas.strategy/v1` spec; spec validation                             |
+| POST         | `/`                             | session           | Create (name, tagline, prompt, spec, visibility, icon)                         |
+| PATCH        | `/:id`                          | creator           | Edit; a changed spec clears the published track record                         |
+| PUT          | `/:id/visibility`               | creator           | Publish / unpublish                                                            |
+| DELETE       | `/:id`                          | creator           | Refused (409 `IN_USE`) once others have deployed it                            |
+| POST         | `/:id/clone`                    | session           | Private copy; `originalCreator` stays the root author                          |
+| POST         | `/:id/backtest`                 | session           | 1-year backtest; the creator's run becomes the public record                   |
+| POST         | `/:id/deploy`                   | session           | `paper` or `live`; live deployments by non-authors pay 0.1% to the root author |
+| GET · DELETE | `/positions` · `/positions/:id` | session           | Your positions; stop / withdraw                                                |
+| POST         | `/reset`                        | session, dev only | Drop your own strategies and positions                                         |
+
+Spec compilation, simulation and fee maths are shared with the frontend: edit
+`frontend/src/lib/strategy-core.ts`, then run `npm run strategies:sync` (`typecheck` fails if the copy is stale).
+Live deployments are simulated: no aUSDT moves on-chain yet.
+
 ## Integration and deployment limits
 
 - Wallet challenges contain an origin, random nonce, chain, issued time and five-minute expiry. The server verifies the signature against the saved challenge. Challenges are one-use, including failed attempts. Never request private keys or seed phrases.
@@ -179,3 +204,21 @@ Test quote leases last up to 24 hours and renew when less than half their lifeti
 `npm run dev` starts the optional workers automatically in this mode. Run only one publisher; PID locks prevent duplicates. Existing app processes need restarting to pick up new worker settings. A failed source refresh preserves the previous snapshot. New onboarded listings need a validated source mapping before publishing.
 
 To return to live data, stop the historical publisher, select `PRICE_SOURCE=twelvedata-kraken`, restore each market's intended live `maxPriceAge` (normally 900 seconds) through the owner/admin controls, then start the live feed and publisher. Historical mode refuses production and mainnet.
+
+## Live Sepolia execution for Atlas AI (MetaMask aUSDT delegation)
+
+Set in `backend/.env` (restart the backend after changing):
+
+| Variable | Purpose |
+| --- | --- |
+| `INTENT_EXECUTION=onchain` | Execute Atlas AI strategies on Sepolia instead of the simulated ledger. |
+| `INTENT_EXECUTOR_PRIVATE_KEY` | Fresh key (no code on Sepolia) for the Atlas executor. Fund it with Sepolia ETH for gas. |
+| `DO_NOT_TRACK=1` | Disables the MetaMask Smart Accounts Kit's anonymous analytics on the server. |
+
+Flow: on deploy, MetaMask (13.23+, smart account) grants the executor an ERC-7715 aUSDT allowance capped at the
+strategy's maximum spend until it expires. If the vault is short, the app first converts USDT → aUSDT. At entry the
+executor pulls the aUSDT, buys, and returns any change. At exit it sells and sends the aUSDT back. Every step is a
+Sepolia transaction listed in `GET /api/intents/trades`. The stock is held by the executor during the trade.
+
+Fork check (no real transactions): `anvil --fork-url https://ethereum-sepolia-rpc.publicnode.com --fork-block-number <head-10> --port 8547`
+then `FORK_RPC=http://127.0.0.1:8547 DO_NOT_TRACK=1 npx tsx scripts/onchain-fork-check.ts`.

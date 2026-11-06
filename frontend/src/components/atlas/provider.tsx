@@ -13,6 +13,7 @@ import { MotionConfig } from "framer-motion";
 import type { PublicKeyCredentialCreationOptionsJSON } from "@simplewebauthn/browser";
 import { api } from "@/lib/api";
 import type { UserOnboardingState, WalletState } from "@/lib/types";
+import { clearChainCache } from "@/lib/chain-cache";
 const defaults: UserOnboardingState = {
   ensName: null,
   ensChainId: null,
@@ -143,6 +144,7 @@ export function AtlasProvider({ children }: { children: ReactNode }) {
   }, [state, wallet, ready, toast]);
   const logout = useCallback(async () => {
     await api("/auth/logout", {});
+    clearChainCache();
     setWallet(null);
     setState(defaults);
     router.replace("/");

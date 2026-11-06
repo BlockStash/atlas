@@ -130,9 +130,21 @@ export interface MarketSource {
 export class CalendarMarketSource implements MarketSource {
   /** Demo control: force every exchange open. Never used outside demo mode. */
   forceOpen = false;
-  constructor(private allowForce = false) {}
+  constructor(
+    private allowForce = false,
+    /** Atlas markets run 24/7 (see marketsAlwaysOpen); false applies exchange hours. */
+    private alwaysOpen = false,
+  ) {}
   state(exchange: string, now: number): MarketState {
     const s = marketState(exchange, now);
+    if (this.alwaysOpen)
+      return {
+        ...s,
+        open: true,
+        reason: "OPEN",
+        nextOpen: null,
+        nextClose: null,
+      };
     if (this.allowForce && this.forceOpen && !s.open)
       return {
         ...s,
@@ -157,6 +169,8 @@ export interface ExecutionRequest {
   /** BUY: USDT notional to spend. SELL: quantity to sell (1e18). */
   notionalUSDT?: bigint;
   quantity?: bigint;
+  /** The strategy's slippage limit; live execution bounds shares spent/received by it. */
+  maxSlippageBps?: number;
   now: number;
 }
 export interface ExecutionResult {

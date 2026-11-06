@@ -23,6 +23,7 @@ import {
 } from "@/components/atlas/ui";
 import { Globe } from "@/components/atlas/globe";
 import { useAtlas } from "@/components/atlas/provider";
+import { SkinToggle, ThemeToggle } from "@/components/atlas/theme";
 export default function Landing() {
   const { setModal } = useAtlas();
   const [mobile, setMobile] = useState(false),
@@ -66,6 +67,10 @@ export default function Landing() {
           </button>
         </nav>
         <div className="nav-actions">
+          <span className="theme-switches">
+            <SkinToggle />
+            <ThemeToggle />
+          </span>
           <button className="demo-link" onClick={() => setModal(true)}>
             Investor demo
             <ArrowUpRight size={14} />
@@ -92,21 +97,20 @@ export default function Landing() {
         >
           <div className="hero-label">
             <span className="status-dot" />
-            GLOBAL INVESTING
+            GLOBAL STRATEGIES
             <span className="label-divider" />
             CRYPTO NATIVE
           </div>
-          <h1>
-            Global Markets.
+          <h1 className="hero-title-long">
+            Smart Global Finance
             <br />
-            <span>One Wallet.</span>
+            <span>Strategy Platform.</span>
           </h1>
           <p className="hero-description">
-            A world of opportunity. A single point of access.
-            <br className="desktop-break" /> Discover global markets through one
-            seamless,
-            <br className="desktop-break" /> crypto-native investment
-            experience.
+            Build, share and copy trading strategies that run
+            <br className="desktop-break" /> across the world&rsquo;s markets
+            &mdash; all from one
+            <br className="desktop-break" /> seamless, crypto-native wallet.
           </p>
           <div className="hero-actions">
             <button className="btn primary" onClick={() => setModal(true)}>
@@ -140,7 +144,7 @@ export default function Landing() {
         </motion.div>
         <div id="markets" className="hero-art">
           <div className="art-label">
-            <span>YOUR WORLD. CONNECTED.</span>
+            <span>STRATEGIES. WORLDWIDE.</span>
             <span>01 — 05</span>
           </div>
           <Globe onMarket={() => setModal(true)} />

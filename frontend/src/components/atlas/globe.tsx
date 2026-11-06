@@ -2,7 +2,54 @@
 import { motion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { markets } from "@/lib/data";
-import { MarketClock } from "./ui";
+
+const flags = Object.fromEntries(markets.map((m) => [m.id, m.flag]));
+const labels: Record<string, string> = {
+  usa: "US",
+  uk: "UK",
+  europe: "EU",
+  india: "IN",
+  singapore: "SG",
+  crypto: "Crypto",
+};
+// Illustrative strategies shown on the landing globe. Slots reuse the five card positions.
+const strategies = [
+  {
+    slot: "usa",
+    name: "Global Tech Momentum",
+    markets: ["usa", "india", "uk"],
+    ret: "+18.4%",
+    risk: "Aggressive",
+  },
+  {
+    slot: "uk",
+    name: "Dividend Shield",
+    markets: ["uk", "europe", "singapore"],
+    ret: "+9.2%",
+    risk: "Conservative",
+  },
+  {
+    slot: "europe",
+    name: "Euro Value Rotation",
+    markets: ["europe", "uk"],
+    ret: "+11.7%",
+    risk: "Balanced",
+  },
+  {
+    slot: "india",
+    name: "Emerging Asia Growth",
+    markets: ["india", "singapore"],
+    ret: "+22.1%",
+    risk: "Aggressive",
+  },
+  {
+    slot: "singapore",
+    name: "All-Weather Global",
+    markets: ["usa", "europe", "india", "singapore"],
+    ret: "+12.6%",
+    risk: "Balanced",
+  },
+];
 // Orthographic projection of a point-cloud globe. The continent shapes and orbit lines
 // stay as vectors at every screen size; no external image requests are needed.
 const shapes = [
@@ -107,7 +154,7 @@ export function Globe({ onMarket }: { onMarket: () => void }) {
       <svg
         className="globe-svg"
         viewBox="0 0 560 530"
-        aria-label="Globe connecting five global markets"
+        aria-label="Globe showing trading strategies running across global markets"
         role="img"
       >
         <defs>
@@ -211,47 +258,40 @@ export function Globe({ onMarket }: { onMarket: () => void }) {
           strokeDasharray="200 750"
         />
       </svg>
-      {markets
-        .filter((m) => m.id !== "crypto")
-        .map((m, i) => (
-          <motion.button
-            key={m.id}
-            className={`floating-market floating-${m.id}`}
-            onClick={onMarket}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: [0, -5, 0] }}
-            transition={{
-              opacity: { delay: 0.1 * i, duration: 0.5 },
-              y: {
-                delay: i * 0.7,
-                duration: 7,
-                repeat: Infinity,
-                ease: "easeInOut",
-              },
-            }}
-          >
-            <div>
-              <span className="flag">{m.flag}</span>
-              <strong>
-                {m.name === "United States"
-                  ? "UNITED STATES"
-                  : m.name === "United Kingdom"
-                    ? "UNITED KINGDOM"
-                    : m.name.toUpperCase()}
-              </strong>
-              <ArrowUpRight size={12} />
-            </div>
-            <p>{m.exchange}</p>
-            <footer>
-              <MarketClock market={m} />
-              <span className={`market-status ${m.open ? "" : "closed"}`}>
-                {m.open ? "● OPEN" : "○ CLOSED"}
-              </span>
-            </footer>
-          </motion.button>
-        ))}
+      {strategies.map((st, i) => (
+        <motion.button
+          key={st.slot}
+          className={`floating-market floating-strategy floating-${st.slot}`}
+          onClick={onMarket}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: [0, -5, 0] }}
+          transition={{
+            opacity: { delay: 0.1 * i, duration: 0.5 },
+            y: {
+              delay: i * 0.7,
+              duration: 7,
+              repeat: Infinity,
+              ease: "easeInOut",
+            },
+          }}
+        >
+          <div>
+            <span className="strategy-flags" aria-hidden>
+              {st.markets.map((m) => flags[m]).join("")}
+            </span>
+            <span className="strategy-live">● LIVE</span>
+            <ArrowUpRight size={12} />
+          </div>
+          <strong className="strategy-name">{st.name.toUpperCase()}</strong>
+          <p>{st.markets.map((m) => labels[m]).join(" · ")}</p>
+          <footer>
+            <span className="strategy-return">{st.ret} 1Y</span>
+            <span className="market-status closed">{st.risk}</span>
+          </footer>
+        </motion.button>
+      ))}
       <div className="globe-caption">
-        <span className="status-dot" /> CONNECTED BY ATLAS
+        <span className="status-dot" /> STRATEGIES RUNNING WORLDWIDE
         <span className="caption-line" />
         BORDERLESS BY DESIGN
       </div>
