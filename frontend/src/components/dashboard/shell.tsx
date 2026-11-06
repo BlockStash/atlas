@@ -6,6 +6,7 @@ import {
   Bell,
   ChevronDown,
   Globe2,
+  Sparkles,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -25,8 +26,10 @@ import {
   LoadingScreen,
 } from "@/components/atlas/ui";
 import { useAtlas } from "@/components/atlas/provider";
+import { ThemeToggle } from "@/components/atlas/theme";
 import { ENSName } from "@/components/wallet/ens-name";
 const links = [
+  { href: "/home", label: "Atlas AI home", Icon: Sparkles },
   { href: "/dashboard", label: "Overview", Icon: LayoutDashboard },
   { href: "/markets", label: "Global markets", Icon: Globe2 },
   { href: "/portfolio", label: "My portfolio", Icon: PieChart },
@@ -38,6 +41,7 @@ const links = [
 ];
 /** Personal strategy routes highlight "My strategies"; other /strategies/* pages highlight Explore. */
 const isActive = (href: string, path: string) => {
+  if (href === "/home") return path === href;
   if (href === "/strategies/mine")
     return path === href || path === "/strategies/new";
   if (href === "/strategies")
@@ -139,7 +143,8 @@ export function DashboardShell({
           >
             <Menu size={21} />
           </button>
-          {onSearch ? (
+          {/* Only pages that filter on it (markets views) show the header search. */}
+          {onSearch && (
             <label className="search-field">
               <Search size={16} />
               <input
@@ -151,17 +156,12 @@ export function DashboardShell({
               />
               <kbd>/</kbd>
             </label>
-          ) : (
-            <Link className="search-field" href="/markets">
-              <Search size={16} />
-              <span>Search markets, countries…</span>
-              <kbd>/</kbd>
-            </Link>
           )}
           <div className="header-tools">
             <div id="tour-clock">
               <GlobalMarketClock />
             </div>
+            <ThemeToggle />
             <button
               className="notification-button"
               aria-label="Notifications"

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "theme:light": "node scripts/build-light-theme.mjs && npx prettier --write src/app/theme-light.generated.css"
   },
   "dependencies": {
     "@ensdomains/ensjs": "^5.2.12",

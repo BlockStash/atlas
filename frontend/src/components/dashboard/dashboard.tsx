@@ -184,6 +184,8 @@ export function Dashboard({
         Number(state.selectedMarkets.includes(b.id)) -
         Number(state.selectedMarkets.includes(a.id)),
     )
+    // Crypto has its own tab on /markets, so the Global markets list shows stock exchanges only.
+    .filter((m) => view !== "markets" || m.id !== "crypto")
     .filter((m) =>
       `${m.name} ${m.exchange} ${m.index}`
         .toLowerCase()

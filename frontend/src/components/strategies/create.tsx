@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
 import { DashboardShell } from "@/components/dashboard/shell";
@@ -11,6 +11,7 @@ export function CreateStrategyPage() {
   const { toast } = useAtlas();
   const store = useStrategyStore();
   const router = useRouter();
+  const prompt = useSearchParams().get("prompt")?.slice(0, 1000) || undefined;
   return (
     <DashboardShell>
       <main className="protocol-content strategies-page studio-page">
@@ -28,6 +29,7 @@ export function CreateStrategyPage() {
           </p>
         </div>
         <StrategyStudio
+          autoPrompt={prompt}
           submitLabel="Save strategy"
           onCancel={() => router.push("/strategies/mine")}
           onSubmit={(v) => {

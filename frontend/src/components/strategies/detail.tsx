@@ -25,6 +25,7 @@ import {
   MARKET_FLAG,
   PERIODS,
   creatorFee,
+  iconKey as iconKeyOf,
   describeRule,
   performanceFor,
   positionPerformance,
@@ -36,7 +37,9 @@ import {
   type Strategy,
 } from "@/lib/strategies";
 import { StrategyStudio } from "./studio";
+import { IconPicker, StrategyIconBadge } from "./icon";
 import {
+  CreatorName,
   EnsHandle,
   EquityChart,
   MarketChips,
@@ -60,6 +63,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
   const [adhoc, setAdhoc] = useState<Performance | null>(null);
   const [mode, setMode] = useState<RunMode | null>(null);
   const [showJson, setShowJson] = useState(false);
+  const [iconPicker, setIconPicker] = useState(false);
 
   if (!store.loaded) return <DashboardShell>{null}</DashboardShell>;
   if (!s)
@@ -116,9 +120,19 @@ export function StrategyDetailPage({ id }: { id: string }) {
               </span>
               <h1>Refine with Atlas AI</h1>
               <p>
-                {s.forkedFrom
-                  ? `Cloned from “${s.forkedFrom.name}”. Tweak the prompt, weights or rules — ${s.originalCreator.name} still earns ${CREATOR_FEE_BPS / 100}% when you deploy.`
-                  : "Changing the allocation or rules resets the backtest and paper track record."}
+                {s.forkedFrom ? (
+                  <>
+                    Cloned from “{s.forkedFrom.name}”. Tweak the prompt, weights
+                    or rules —{" "}
+                    <CreatorName
+                      name={s.originalCreator.name}
+                      address={s.originalCreator.address}
+                    />{" "}
+                    still earns {CREATOR_FEE_BPS / 100}% when you deploy.
+                  </>
+                ) : (
+                  "Changing the allocation or rules resets the backtest and paper track record."
+                )}
               </p>
             </div>
           </div>
@@ -133,6 +147,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
                 tagline: v.tagline,
                 prompt: v.prompt,
                 spec: v.spec,
+                ...(v.icon ? { icon: v.icon } : {}),
               });
               setEditing(false);
               setAdhoc(null);
@@ -161,13 +176,51 @@ export function StrategyDetailPage({ id }: { id: string }) {
               {s.spec.rebalance.frequency.toUpperCase()} REBALANCE ·{" "}
               {s.spec.universe.length} ASSETS
             </span>
-            <h1>{s.name}</h1>
+            <div className="strategy-title-row">
+              {owner ? (
+                <button
+                  type="button"
+                  className="strategy-icon-edit"
+                  aria-label="Change strategy icon"
+                  aria-expanded={iconPicker}
+                  title="Change icon"
+                  onClick={() => setIconPicker(!iconPicker)}
+                >
+                  <StrategyIconBadge icon={s.icon} size={60} />
+                  <Pencil size={12} />
+                </button>
+              ) : (
+                <StrategyIconBadge icon={s.icon} size={60} />
+              )}
+              <h1>{s.name}</h1>
+            </div>
+            {owner && iconPicker && (
+              <IconPicker
+                value={s.icon}
+                taken={
+                  new Set(
+                    store.strategies
+                      .filter((x) => x.id !== s.id)
+                      .map((x) => iconKeyOf(x.icon)),
+                  )
+                }
+                onChange={(icon) => {
+                  store.update(s.id, { icon });
+                  toast("Icon updated.");
+                }}
+              />
+            )}
             <p>{s.tagline}</p>
             <div className="strategy-byline">
               <EnsHandle ens={s.ens} />
               <VisibilityBadge visibility={s.visibility} />
               <span>
-                by <strong>{owner ? "you" : s.creator.name}</strong>
+                by{" "}
+                <CreatorName
+                  name={s.creator.name}
+                  address={s.creator.address}
+                  you={owner}
+                />
               </span>
               {s.forkedFrom && (
                 <Link href={`/strategies/${s.forkedFrom.id}`}>
@@ -514,11 +567,11 @@ export function StrategyDetailPage({ id }: { id: string }) {
               <p>
                 Whenever someone deploys real funds into this strategy — or any
                 clone of it —{" "}
-                <strong>
-                  {sameAddress(s.originalCreator.address, wallet?.address)
-                    ? "you"
-                    : s.originalCreator.name}
-                </strong>{" "}
+                <CreatorName
+                  name={s.originalCreator.name}
+                  address={s.originalCreator.address}
+                  you={sameAddress(s.originalCreator.address, wallet?.address)}
+                />{" "}
                 receive
                 {sameAddress(s.originalCreator.address, wallet?.address)
                   ? ""
@@ -630,11 +683,27 @@ function RunPanel({
         ))}
       </div>
       <p>
-        {tab === "backtest"
-          ? "Replay the strategy over the last year of prices to see 3M, 6M and 1Y returns, drawdown and Sharpe."
-          : tab === "paper"
-            ? "Run the strategy forward with virtual aUSDT. Nothing is bought, but trades and returns are tracked live."
-            : `Buy the real assets with aUSDT from your Atlas Vault. ${feeApplies ? `${CREATOR_FEE_BPS / 100}% goes to ${s.originalCreator.name}, the original creator.` : "You are the original creator, so no creator fee applies."}`}
+        {tab === "backtest" ? (
+          "Replay the strategy over the last year of prices to see 3M, 6M and 1Y returns, drawdown and Sharpe."
+        ) : tab === "paper" ? (
+          "Run the strategy forward with virtual aUSDT. Nothing is bought, but trades and returns are tracked live."
+        ) : (
+          <>
+            Buy the real assets with aUSDT from your Atlas Vault.{" "}
+            {feeApplies ? (
+              <>
+                {CREATOR_FEE_BPS / 100}% goes to{" "}
+                <CreatorName
+                  name={s.originalCreator.name}
+                  address={s.originalCreator.address}
+                />
+                , the original creator.
+              </>
+            ) : (
+              "You are the original creator, so no creator fee applies."
+            )}
+          </>
+        )}
       </p>
       <form
         onSubmit={(e) => {
@@ -668,7 +737,17 @@ function RunPanel({
               <dd>{usd(value)} aUSDT</dd>
               <dt>Creator fee ({CREATOR_FEE_BPS / 100}%)</dt>
               <dd>
-                {fee ? `${usd(fee, 4)} → ${s.originalCreator.name}` : "None"}
+                {fee ? (
+                  <>
+                    {usd(fee, 4)} →{" "}
+                    <CreatorName
+                      name={s.originalCreator.name}
+                      address={s.originalCreator.address}
+                    />
+                  </>
+                ) : (
+                  "None"
+                )}
               </dd>
               <dt>Invested</dt>
               <dd>{usd(net)} aUSDT</dd>

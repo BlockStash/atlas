@@ -99,9 +99,92 @@ export interface RunMeta {
   nonce: string; // changes when the spec changes / run is restarted
 }
 
+// ───────────────────────────── Icons ─────────────────────────────
+
+/** Glyphs a strategy can use, rendered with lucide-react. */
+export const STRATEGY_ICONS = [
+  "Rocket",
+  "Globe",
+  "Gem",
+  "Flame",
+  "Zap",
+  "Leaf",
+  "Shield",
+  "Mountain",
+  "Anchor",
+  "Compass",
+  "Crown",
+  "Target",
+  "TrendingUp",
+  "Landmark",
+  "Coins",
+  "Bitcoin",
+  "Cpu",
+  "Sun",
+  "Moon",
+  "Waves",
+  "Sprout",
+  "Diamond",
+  "Feather",
+  "Atom",
+  "Orbit",
+  "Factory",
+  "Banknote",
+  "PiggyBank",
+  "Trophy",
+  "Star",
+  "Brain",
+  "Telescope",
+] as const;
+export type StrategyIconName = (typeof STRATEGY_ICONS)[number];
+/** Seven colours: coprime with 32 glyphs, so stepping through combos reaches all 224. */
+export const STRATEGY_COLORS = [
+  "blue",
+  "violet",
+  "green",
+  "amber",
+  "rose",
+  "cyan",
+  "orange",
+] as const;
+export type StrategyColor = (typeof STRATEGY_COLORS)[number];
+export interface StrategyIcon {
+  name: StrategyIconName;
+  color: StrategyColor;
+}
+export const iconKey = (i: StrategyIcon) => `${i.name}:${i.color}`;
+const ICON_COMBOS = STRATEGY_ICONS.length * STRATEGY_COLORS.length;
+const comboAt = (k: number): StrategyIcon => ({
+  name: STRATEGY_ICONS[k % STRATEGY_ICONS.length],
+  color: STRATEGY_COLORS[k % STRATEGY_COLORS.length],
+});
+export function isStrategyIcon(v: unknown): v is StrategyIcon {
+  const i = v as StrategyIcon;
+  return (
+    !!i &&
+    (STRATEGY_ICONS as readonly string[]).includes(i.name) &&
+    (STRATEGY_COLORS as readonly string[]).includes(i.color)
+  );
+}
+/** Deterministic default from `seed`, skipping combinations already in use. */
+export function pickIcon(
+  seed: string,
+  taken: Iterable<StrategyIcon>,
+): StrategyIcon {
+  const used = new Set([...taken].map(iconKey));
+  const start = hash(seed) % ICON_COMBOS;
+  for (let i = 0; i < ICON_COMBOS; i++) {
+    const icon = comboAt((start + i) % ICON_COMBOS);
+    if (!used.has(iconKey(icon))) return icon;
+  }
+  return comboAt(start); // All 224 in use: fall back to a repeat.
+}
+
 export interface Strategy {
   id: string;
   name: string;
+  /** Glyph + colour; unique among the strategies a user can see. */
+  icon: StrategyIcon;
   /** ENS subname handle, e.g. `global-ai-leaders.meera.eth`; null until the creator links ENS. */
   ens: string | null;
   tagline: string;
@@ -842,6 +925,7 @@ function seed(
     id,
     name,
     ens: strategyHandle(name, creator.name),
+    icon: SEED_ICONS[id] ?? pickIcon(id, []),
     tagline: generated.tagline.replace(
       /^\d+ assets/,
       `${spec.universe.length} assets`,
@@ -882,6 +966,17 @@ function seed(
     },
   };
 }
+
+const SEED_ICONS: Record<string, StrategyIcon> = {
+  stg_global_ai: { name: "Cpu", color: "violet" },
+  stg_india_bluechip: { name: "Landmark", color: "amber" },
+  stg_btc_eth_core: { name: "Bitcoin", color: "orange" },
+  stg_all_weather: { name: "Globe", color: "cyan" },
+  stg_asean_banks: { name: "Crown", color: "green" },
+  stg_euro_industrial: { name: "Factory", color: "blue" },
+  stg_ai_crypto_fork: { name: "Atom", color: "rose" },
+  stg_uk_value: { name: "Shield", color: "blue" },
+};
 
 function seedStrategies(): Strategy[] {
   return [
@@ -1042,12 +1137,29 @@ const EMPTY: StoreData = { version: 2, strategies: [], positions: [] };
 let cache: { account: string; data: StoreData } | null = null;
 const listeners = new Set<() => void>();
 
+/** Strategies saved before icons existed get a unique default. */
+function withIcons(data: StoreData): StoreData {
+  if (data.strategies.every((s) => isStrategyIcon(s.icon))) return data;
+  const taken = data.strategies
+    .filter((s) => isStrategyIcon(s.icon))
+    .map((s) => s.icon);
+  return {
+    ...data,
+    strategies: data.strategies.map((s) => {
+      if (isStrategyIcon(s.icon)) return s;
+      const icon = SEED_ICONS[s.id] ?? pickIcon(s.id, taken);
+      taken.push(icon);
+      return { ...s, icon };
+    }),
+  };
+}
+
 function load(account: string): StoreData {
   try {
     const raw = localStorage.getItem(`${KEY}:${account.toLowerCase()}`);
     if (raw) {
       const data = JSON.parse(raw) as StoreData;
-      if (data.version === 2) return data;
+      if (data.version === 2) return withIcons(data);
     }
   } catch {
     /* storage unavailable — fall back to seeds */
@@ -1135,12 +1247,20 @@ export function useStrategies(account?: string, ensName?: string | null) {
       prompt: string;
       spec: StrategySpec;
       visibility: Visibility;
+      icon?: StrategyIcon | null;
     }) {
       if (!account || !me) throw new Error("Connect a wallet first.");
       const now = new Date().toISOString();
+      const id = uid("stg_");
       const s: Strategy = {
-        id: uid("stg_"),
         ...input,
+        id,
+        icon: isStrategyIcon(input.icon)
+          ? input.icon
+          : pickIcon(
+              id,
+              data.strategies.map((x) => x.icon),
+            ),
         ens: strategyHandle(input.name, ensName),
         creator: me,
         originalCreator: me,
@@ -1158,9 +1278,15 @@ export function useStrategies(account?: string, ensName?: string | null) {
       const src = data.strategies.find((s) => s.id === id);
       if (!src || !account || !me) throw new Error("Strategy not found.");
       const now = new Date().toISOString();
+      const cloneId = uid("stg_");
       const copy: Strategy = {
         ...structuredClone(src),
-        id: uid("stg_"),
+        id: cloneId,
+        // A clone gets its own icon so it is distinguishable from its parent.
+        icon: pickIcon(
+          cloneId,
+          data.strategies.map((x) => x.icon),
+        ),
         name: `${src.name.replace(/ Fund$/, "")} (My Fork)`,
         ens: strategyHandle(`${src.name.replace(/ Fund$/, "")} fork`, ensName),
         visibility: "private",
@@ -1189,7 +1315,9 @@ export function useStrategies(account?: string, ensName?: string | null) {
 
     update(
       id: string,
-      input: Partial<Pick<Strategy, "name" | "tagline" | "prompt" | "spec">>,
+      input: Partial<
+        Pick<Strategy, "name" | "tagline" | "prompt" | "spec" | "icon">
+      >,
     ) {
       patch(id, (s) => ({
         ...s,
@@ -1341,3 +1469,68 @@ export const usd = (v: number, digits = 2) =>
   });
 export const compact = (v: number) =>
   v.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 1 });
+
+// ───────────────────────────── Fund-style labels ─────────────────────────────
+
+/** Fund-style category, e.g. "India Equity" + "Income", derived from the spec. */
+export function strategyCategory(s: Strategy): {
+  group: string;
+  style: string;
+} {
+  const markets = [...new Set(s.spec.universe.map((a) => a.market))];
+  const stocks = markets.filter((m) => m !== "crypto");
+  const short: Record<Market, string> = {
+    india: "India",
+    usa: "US",
+    uk: "UK",
+    singapore: "Singapore",
+    europe: "Europe",
+    crypto: "Crypto",
+  };
+  const group = !stocks.length
+    ? "Crypto"
+    : markets.includes("crypto")
+      ? "Hybrid Multi-Asset"
+      : stocks.length >= 3
+        ? "Global Equity"
+        : stocks.length === 2
+          ? `${short[stocks[0]]} + ${short[stocks[1]]} Equity`
+          : `${short[stocks[0]]} Equity`;
+  const indicators = new Set(s.spec.rules.map((r) => r.when.indicator));
+  const style = indicators.has("sma_cross")
+    ? "Momentum"
+    : indicators.has("drawdown")
+      ? "Value Dip"
+      : indicators.has("rsi")
+        ? "Mean Reversion"
+        : s.spec.riskProfile === "conservative"
+          ? "Income"
+          : s.spec.riskProfile === "aggressive"
+            ? "Growth"
+            : "Balanced";
+  return { group, style };
+}
+
+export type RiskLevel = "Low" | "Moderate" | "High" | "Very High";
+export function riskLevel(s: Strategy): RiskLevel {
+  const crypto =
+    s.spec.universe
+      .filter((a) => a.market === "crypto")
+      .reduce((t, a) => t + a.weight, 0) / 100;
+  if (s.spec.riskProfile === "conservative")
+    return crypto > 0.1 ? "Moderate" : "Low";
+  if (s.spec.riskProfile === "balanced")
+    return crypto >= 0.3 ? "High" : "Moderate";
+  return crypto >= 0.4 ? "Very High" : "High";
+}
+
+/**
+ * 1–5 star rating from the risk-adjusted return (Sharpe) of the best available
+ * track record. Null until there are at least 90 days of history. Demo heuristic;
+ * the backend should rate against category peers.
+ */
+export function strategyRating(perf: Performance | null): number | null {
+  if (!perf || perf.days < 90) return null;
+  const sh = perf.sharpe;
+  return sh >= 2.5 ? 5 : sh >= 1.75 ? 4 : sh >= 1 ? 3 : sh >= 0.25 ? 2 : 1;
+}

@@ -1,14 +1,17 @@
 "use client";
 import { useId } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AtSign, Copy, Eye, GitFork, Globe2, Lock, Users } from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
+import { StrategyIconBadge } from "./icon";
 import {
   MARKET_FLAG,
   MARKET_LABEL,
   PERIODS,
   compact,
   headlinePerformance,
+  isEns,
   pct,
   useStrategies,
   type Market,
@@ -122,9 +125,66 @@ export function VisibilityBadge({
 export function EnsHandle({ ens }: { ens: string | null }) {
   if (!ens) return null;
   return (
-    <span className="strategy-ens" title={`${ens} · ENS subname (demo)`}>
-      <AtSign size={12} />
-      {ens}
+    <span className="ens-chip handle" title={`${ens} · ENS subname (demo)`}>
+      <AtSign size={13} />
+      <span className="ens-chip-text">{ens}</span>
+    </span>
+  );
+}
+
+/** URL of a creator's public page: their ENS name, or their address without one. */
+export function creatorHref(name: string, address?: string) {
+  const slug = isEns(name) ? name.toLowerCase() : address?.toLowerCase();
+  return slug ? `/strategies/creator/${encodeURIComponent(slug)}` : null;
+}
+
+/**
+ * A creator's name, linking to their public page. ENS names render as a highlighted chip.
+ * Rendered as role="link" rather than <a> because it often sits inside a card or row that is
+ * itself a link; it stops the click so only the creator page opens.
+ */
+export function CreatorName({
+  name,
+  address,
+  you,
+}: {
+  name: string;
+  address?: string;
+  you?: boolean;
+}) {
+  const router = useRouter();
+  const href = creatorHref(name, address);
+  const ens = !you && isEns(name);
+  const label = you ? "you" : name;
+  const content = (
+    <>
+      {ens && <AtSign size={12} />}
+      <span className="ens-chip-text">{label}</span>
+    </>
+  );
+  if (!href)
+    return ens ? (
+      <span className="ens-chip">{content}</span>
+    ) : (
+      <strong>{label}</strong>
+    );
+  const open = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(href);
+  };
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      className={ens ? "ens-chip creator-link" : "creator-link plain"}
+      title={`View ${you ? "your" : `${name}’s`} public strategies`}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") open(e);
+      }}
+    >
+      {content}
     </span>
   );
 }
@@ -192,21 +252,33 @@ export function StrategyCard({
     <article className="panel strategy-card">
       <Link href={`/strategies/${s.id}`} className="strategy-card-link">
         <header>
-          <div>
-            <h3>{s.name}</h3>
-            <EnsHandle ens={s.ens} />
+          <StrategyIconBadge icon={s.icon} size={48} />
+          <div className="strategy-card-title">
+            <h3 title={s.name}>{s.name}</h3>
             <p>
-              by <strong>{mine ? "you" : s.creator.name}</strong>
-              {s.forkedFrom && (
-                <>
-                  {" "}
-                  · <GitFork size={11} /> {s.forkedFrom.name}
-                </>
-              )}
+              by{" "}
+              <CreatorName
+                name={s.creator.name}
+                address={s.creator.address}
+                you={mine}
+              />
             </p>
           </div>
           {mine && <VisibilityBadge visibility={s.visibility} />}
         </header>
+        {(s.ens || s.forkedFrom) && (
+          <div className="strategy-card-ids">
+            <EnsHandle ens={s.ens} />
+            {s.forkedFrom && (
+              <span
+                className="strategy-card-fork"
+                title={`Forked from ${s.forkedFrom.name}`}
+              >
+                <GitFork size={13} /> Fork of {s.forkedFrom.name}
+              </span>
+            )}
+          </div>
+        )}
         <MarketChips markets={s.spec.universe.map((a) => a.market)} />
         <EquityChart curve={perf?.curve ?? []} height={70} compactMode />
         <div className="strategy-card-meta">

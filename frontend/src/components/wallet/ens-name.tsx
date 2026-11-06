@@ -28,7 +28,10 @@ export function ENSName({ address }: { address: string }) {
     };
   }, [address, state.ensName]);
   return (
-    <span title={`${name ? `${name} · ` : ""}${address} · Sepolia ENS`}>
+    <span
+      className={name ? "ens-chip" : undefined}
+      title={`${name ? `${name} · ` : ""}${address} · Sepolia ENS`}
+    >
       {name || shortAddress(address)}
     </span>
   );
