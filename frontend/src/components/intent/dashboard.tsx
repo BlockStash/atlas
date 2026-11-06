@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Bell, Bot, Plus } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/shell";
@@ -54,6 +54,7 @@ export function IntentDashboard() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const seenNotifications = useRef<Set<Notification["id"]> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -62,16 +63,16 @@ export function IntentDashboard() {
         intentApi.notifications(),
       ]);
       setItems(l.intents);
-      setNotes((prev) => {
-        // Surface notifications that arrived since the last poll.
-        const seen = new Set(prev.map((p) => p.id));
-        if (prev.length)
-          n.notifications
-            .filter((x) => !seen.has(x.id))
-            .slice(0, 3)
-            .forEach((x) => toast(x.message));
-        return n.notifications;
-      });
+      const seen = seenNotifications.current;
+      seenNotifications.current = new Set(n.notifications.map((note) => note.id));
+      setNotes(n.notifications);
+      // Poll callbacks can emit toasts; React state updaters must remain pure.
+      // The first successful response establishes the baseline, even if empty.
+      if (seen !== null)
+        n.notifications
+          .filter((note) => !seen.has(note.id))
+          .slice(0, 3)
+          .forEach((note) => toast(note.message));
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load strategies.");
