@@ -37,6 +37,7 @@ import {
   type Strategy,
 } from "@/lib/strategies";
 import { StrategyStudio } from "./studio";
+import { StrategyEnsPanel } from "./ens-subname";
 import { PlanRunner } from "@/components/intent/plan-runner";
 import {
   ActivityTab,
@@ -248,7 +249,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
             )}
             <p>{s.tagline}</p>
             <div className="strategy-byline">
-              <EnsHandle ens={s.ens} />
+              <EnsHandle ens={s.ens} record={s.ensRecord} />
               <VisibilityBadge visibility={s.visibility} />
               <span>
                 by{" "}
@@ -761,6 +762,7 @@ export function StrategyDetailPage({ id }: { id: string }) {
                 </small>
               )}
             </section>
+            <StrategyEnsPanel s={s} owner={owner} />
           </aside>
         </div>
       </main>

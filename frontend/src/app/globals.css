@@ -5345,6 +5345,146 @@ th:not(:first-child) {
   font-size: 15px;
   color: var(--muted);
 }
+/* ENSv2 strategy subnames */
+.strategy-ens-callout .ens-batch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: 340px;
+  flex: 0 1 auto;
+}
+.strategy-ens-callout .ens-batch span {
+  font-size: 13px;
+  text-align: right;
+}
+.strategy-ens-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+.strategy-ens-panel.live {
+  border-color: #68c7aa40;
+}
+.strategy-ens-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.strategy-ens-panel p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.strategy-ens-name {
+  display: flex;
+  min-width: 0;
+}
+.strategy-ens-name code,
+.ens-subname-slot {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.strategy-ens-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.ens-subname-slot {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px dashed #ffffff26;
+  border-radius: 8px;
+}
+.ens-subname-slot em {
+  font-style: normal;
+  opacity: 0.7;
+}
+.strategy-ens-facts {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.strategy-ens-facts > div {
+  display: grid;
+  gap: 2px;
+}
+.strategy-ens-facts dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.strategy-ens-facts dd {
+  margin: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.strategy-ens-facts code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+.strategy-ens-links {
+  display: flex;
+  gap: 14px;
+}
+.strategy-ens-links a,
+.ens-subname-phase a {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--blue);
+}
+.strategy-ens-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ens-subname-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--green) !important;
+}
+.ens-subname-phase {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--muted);
+}
+.ens-subname-warn {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #f2c77a !important;
+}
+.ens-subname-error {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--red) !important;
+  overflow-wrap: anywhere;
+}
+.ens-chip.handle.verified {
+  border-color: #68c7aa66;
+}
+.ens-chip.handle.verified > svg {
+  color: var(--green);
+}
+@media (max-width: 720px) {
+  .strategy-ens-callout .ens-batch {
+    align-items: flex-start;
+    max-width: none;
+  }
+  .strategy-ens-callout .ens-batch span {
+    text-align: left;
+  }
+}
 .strategies-page code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.92em;

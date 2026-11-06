@@ -250,6 +250,32 @@ export function useStrategies(account?: string, ensName?: string | null) {
       });
     },
 
+    /** POST /strategies/ens/targets — the subnames the server will accept for these strategies. */
+    ensTargets(ids: string[]) {
+      return mutate(async () => {
+        const r = await api<{ targets: { id: string; name: string }[] }>(
+          "/strategies/ens/targets",
+          { ids },
+        );
+        return r.targets;
+      });
+    },
+
+    /** POST /strategies/ens — the server resolves each subname onchain before recording it. */
+    confirmEns(ids: string[], txHash: string) {
+      return mutate(async () => {
+        const r = await api<{ strategies: Strategy[] }>("/strategies/ens", {
+          ids,
+          txHash,
+        });
+        setData(key, (d) => ({
+          ...d,
+          strategies: r.strategies.reduce(upsert, d.strategies),
+        }));
+        return r.strategies;
+      });
+    },
+
     /** POST /strategies/reset — development only. */
     resetDemo() {
       return mutate(async () => {

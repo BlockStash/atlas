@@ -398,7 +398,10 @@ export function ExploreStrategiesPage() {
                   <h2>{featured.s.name}</h2>
                 </div>
                 <div className="strategy-spotlight-by">
-                  <EnsHandle ens={featured.s.ens} />
+                  <EnsHandle
+                    ens={featured.s.ens}
+                    record={featured.s.ensRecord}
+                  />
                   <span>
                     by{" "}
                     <CreatorName

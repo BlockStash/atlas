@@ -11,6 +11,7 @@ import {
   uid,
   validateSpec,
   type Creator,
+  type EnsRecord,
   type Performance,
   type Position,
   type RunMeta,
@@ -217,6 +218,7 @@ export class StrategyService {
           ? input.icon
           : pickIcon(id, this.takenIcons(viewer)),
         ens: strategyHandle(input.name, viewer.ensName),
+        ensRecord: null,
         creator: me,
         originalCreator: me,
         forkedFrom: null,
@@ -242,6 +244,9 @@ export class StrategyService {
       const s = this.owned(id, viewer);
       const specChanged =
         !!spec && JSON.stringify(spec) !== JSON.stringify(s.spec);
+      const ens = patch.name
+        ? strategyHandle(patch.name, viewer.ensName ?? s.creator.name)
+        : s.ens;
       const next: Strategy = {
         ...s,
         ...(patch.name !== undefined ? { name: patch.name } : {}),
@@ -249,9 +254,9 @@ export class StrategyService {
         ...(patch.prompt !== undefined ? { prompt: patch.prompt } : {}),
         ...(spec ? { spec } : {}),
         ...(isStrategyIcon(patch.icon) ? { icon: patch.icon } : {}),
-        ens: patch.name
-          ? strategyHandle(patch.name, viewer.ensName ?? s.creator.name)
-          : s.ens,
+        ens,
+        // A renamed strategy gets a new handle; the old subname is no longer its record.
+        ensRecord: ens === s.ens ? (s.ensRecord ?? null) : null,
         // Spec edits invalidate the old track record.
         runs: specChanged ? {} : s.runs,
         updatedAt: this.iso(),
@@ -296,6 +301,7 @@ export class StrategyService {
         icon: pickIcon(cloneId, this.takenIcons(viewer)),
         name: `${base} (My Fork)`,
         ens: strategyHandle(`${base} fork`, viewer.ensName),
+        ensRecord: null,
         visibility: "private",
         creator: this.me(viewer),
         // The ORIGINAL creator stays attached through every clone generation.
@@ -313,6 +319,80 @@ export class StrategyService {
       this.repo.save(copy);
       return copy;
     });
+  }
+
+  /**
+   * The subname each of the viewer's strategies would publish under their linked ENS name. A
+   * strategy saved before the creator linked ENS gets its handle now. Throws if none can publish.
+   */
+  ensTargets(viewer: Viewer, ids: string[]) {
+    const root = isEns(viewer.ensName) ? viewer.ensName!.toLowerCase() : null;
+    if (!root)
+      throw new StrategyError(
+        "ENS_REQUIRED",
+        "Link an ENS name to publish strategy subnames.",
+        409,
+      );
+    const targets = [...new Set(ids)].map((id) => {
+      const s = this.owned(id, viewer);
+      const name = s.ens?.endsWith(`.${root}`)
+        ? s.ens
+        : strategyHandle(s.name, root);
+      if (!name)
+        throw new StrategyError(
+          "ENS_INVALID",
+          `“${s.name}” has no letters or numbers to build a subname from. Rename it first.`,
+        );
+      return { id, name };
+    });
+    const names = new Map<string, string>();
+    for (const t of targets) {
+      const clash = names.get(t.name);
+      if (clash)
+        throw new StrategyError(
+          "ENS_TAKEN",
+          `Two strategies would both publish as ${t.name}. Rename one first.`,
+          409,
+        );
+      names.set(t.name, t.id);
+    }
+    for (const other of this.repo.visible(viewer.address)) {
+      if (!sameAddress(other.creator.address, viewer.address)) continue;
+      const taken = other.ensRecord?.name;
+      if (taken && names.has(taken) && names.get(taken) !== other.id)
+        throw new StrategyError(
+          "ENS_TAKEN",
+          `${taken} already points to “${other.name}”. Rename this strategy first.`,
+          409,
+        );
+    }
+    return targets;
+  }
+
+  /** Stores subnames the router has verified onchain (resolve → creator address). */
+  recordEns(
+    viewer: Viewer,
+    records: { id: string; record: Omit<EnsRecord, "verifiedAt"> }[],
+  ): Strategy[] {
+    return this.repo.transaction(() =>
+      records.map(({ id, record }) => {
+        const s = this.owned(id, viewer);
+        if (!sameAddress(record.address, viewer.address))
+          throw new StrategyError(
+            "ENS_WALLET_MISMATCH",
+            `${record.name} does not resolve to your wallet.`,
+            409,
+          );
+        const next: Strategy = {
+          ...s,
+          ens: record.name,
+          ensRecord: { ...record, verifiedAt: this.iso() },
+          updatedAt: this.iso(),
+        };
+        this.repo.save(next);
+        return next;
+      }),
+    );
   }
 
   /** 1-year backtest. The creator's run is published as the strategy's track record. */

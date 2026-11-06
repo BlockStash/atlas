@@ -38,6 +38,10 @@ export function strategiesRouter(options: {
   viewer: (res: Response) => Promise<Viewer | undefined>;
   limit: RequestHandler;
   production: boolean;
+  /** Onchain read of a name via the ENS Universal Resolver (address + serving resolver). */
+  ensRead: (
+    name: string,
+  ) => Promise<{ address: string; resolver: string } | null>;
 }) {
   const { service } = options;
   const r = Router();
@@ -114,6 +118,46 @@ export function strategiesRouter(options: {
       strategies: service.list(viewer),
       positions: service.positions(viewer),
     });
+  });
+
+  /**
+   * ENS subnames for strategies. The creator's wallet writes the records (an ENSv2 Permissioned
+   * Resolver they control); the server only names the targets and then checks what resolves.
+   */
+  const ensIds = z.object({ ids: z.array(id).min(1).max(25) }).strict();
+  r.post("/ens/targets", async (req, res) => {
+    const { ids } = ensIds.parse(req.body);
+    res.json({ targets: service.ensTargets(await need(res), ids) });
+  });
+  r.post("/ens", options.limit, async (req, res) => {
+    const { ids, txHash } = ensIds
+      .extend({ txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/) })
+      .strict()
+      .parse(req.body);
+    const viewer = await need(res);
+    const targets = service.ensTargets(viewer, ids);
+    const records = await Promise.all(
+      targets.map(async ({ id, name }) => {
+        const found = await options.ensRead(name);
+        if (!found)
+          throw new StrategyError(
+            "ENS_NOT_FOUND",
+            `${name} does not resolve yet. Wait for the transaction to confirm and try again.`,
+            409,
+          );
+        return {
+          id,
+          record: {
+            name,
+            address: found.address,
+            resolver: found.resolver,
+            txHash: txHash.toLowerCase(),
+            chainId: 11155111 as const,
+          },
+        };
+      }),
+    );
+    res.json({ strategies: service.recordEns(viewer, records) });
   });
 
   r.post("/", options.limit, async (req, res) => {

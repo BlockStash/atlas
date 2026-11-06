@@ -30,6 +30,7 @@ import {
   type ViewMode,
 } from "./table";
 import { StrategyIconBadge } from "./icon";
+import { EnsBatchPublish } from "./ens-subname";
 
 type Filter = "all" | "public" | "private" | "forks";
 
@@ -107,7 +108,7 @@ export function MyStrategiesPage() {
                 <span className="ens-chip handle">
                   global-growth.{state.ensName}
                 </span>{" "}
-                so others can find and verify it.
+                that resolves to your wallet, written to your ENSv2 resolver.
               </span>
             </div>
           ) : (
@@ -119,7 +120,9 @@ export function MyStrategiesPage() {
               </span>
             </div>
           )}
-          {!hasEns && (
+          {hasEns ? (
+            <EnsBatchPublish strategies={store.mine} />
+          ) : (
             <Link className="btn secondary small" href="/wallet">
               Link ENS
             </Link>

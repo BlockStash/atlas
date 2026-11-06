@@ -371,3 +371,111 @@ test("an Atlas AI trade plan saves as a strategy, stays strictly validated and r
     })
     .expect(400);
 });
+
+test("strategy subnames are verified onchain before they are recorded", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "atlas-strategies-ens-"));
+  const { ProfileStore } = await import("../src/store.js");
+  const store = new ProfileStore(join(dir, "profiles.json"));
+  // Stand-in for the Universal Resolver: name → address of whatever the "chain" holds.
+  const chain = new Map<string, string>();
+  const app = createApp({
+    dataFile: join(dir, "profiles.json"),
+    store,
+    frontendOrigin: origin,
+    demoWallet: true,
+    demoWorldId: true,
+    production: false,
+    ensRead: async (name) => {
+      const address = chain.get(name);
+      return address ? { address, resolver: `0x${"ab".repeat(20)}` } : null;
+    },
+  });
+  const alice = request.agent(app);
+  const address = (
+    await alice
+      .post("/api/auth/demo")
+      .set("Origin", origin)
+      .send({})
+      .expect(200)
+  ).body.wallet.address as string;
+  const gen = await alice
+    .post("/api/strategies/generate")
+    .set("Origin", origin)
+    .send({ prompt: "Buy AI chip leaders in the US, rebalance monthly" })
+    .expect(200);
+  const create = (name: string) =>
+    alice
+      .post("/api/strategies")
+      .set("Origin", origin)
+      .send({
+        name,
+        tagline: "",
+        prompt: "chips",
+        spec: gen.body.spec,
+        visibility: "private",
+      })
+      .expect(201);
+  // Created before ENS was linked: no handle yet, and publishing is refused.
+  const early = (await create("Chip Momentum")).body;
+  assert.equal(early.ens, null);
+  await alice
+    .post("/api/strategies/ens/targets")
+    .set("Origin", origin)
+    .send({ ids: [early.id] })
+    .expect(409);
+
+  await store.update(address, { ensName: "alice.eth" });
+  const late = (await create("Atlas Global Growth Fund")).body;
+  assert.equal(late.ens, "global-growth.alice.eth");
+  const targets = await alice
+    .post("/api/strategies/ens/targets")
+    .set("Origin", origin)
+    .send({ ids: [early.id, late.id] })
+    .expect(200);
+  assert.deepEqual(
+    targets.body.targets.map((t: { name: string }) => t.name),
+    ["chip-momentum.alice.eth", "global-growth.alice.eth"],
+  );
+
+  const txHash = `0x${"12".repeat(32)}`;
+  const confirm = () =>
+    alice
+      .post("/api/strategies/ens")
+      .set("Origin", origin)
+      .send({ ids: [early.id, late.id], txHash });
+  // Nothing onchain yet, then a record pointing somewhere else: both refused.
+  await confirm().expect(409);
+  chain.set("chip-momentum.alice.eth", address);
+  chain.set("global-growth.alice.eth", `0x${"99".repeat(20)}`);
+  await confirm().expect(409);
+  chain.set("global-growth.alice.eth", address);
+  const ok = await confirm().expect(200);
+  assert.deepEqual(
+    ok.body.strategies.map((s: { ens: string }) => s.ens),
+    ["chip-momentum.alice.eth", "global-growth.alice.eth"],
+  );
+  assert.equal(ok.body.strategies[0].ensRecord.address, address);
+  assert.equal(ok.body.strategies[0].ensRecord.txHash, txHash);
+
+  // Clones never inherit the record; renaming drops it with the old handle.
+  const clone = await alice
+    .post(`/api/strategies/${late.id}/clone`)
+    .set("Origin", origin)
+    .send({})
+    .expect(201);
+  assert.equal(clone.body.ensRecord, null);
+  const renamed = await alice
+    .patch(`/api/strategies/${early.id}`)
+    .set("Origin", origin)
+    .send({ name: "Chip Leaders" })
+    .expect(200);
+  assert.equal(renamed.body.ens, "chip-leaders.alice.eth");
+  assert.equal(renamed.body.ensRecord, null);
+  // A second strategy cannot claim a subname another one already holds.
+  const dup = (await create("Global Growth")).body;
+  await alice
+    .post("/api/strategies/ens/targets")
+    .set("Origin", origin)
+    .send({ ids: [dup.id] })
+    .expect(409);
+});

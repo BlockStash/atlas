@@ -265,6 +265,11 @@ export interface Strategy {
   icon: StrategyIcon;
   /** ENS subname handle, e.g. `global-ai-leaders.meera.eth`; null until the creator links ENS. */
   ens: string | null;
+  /**
+   * Set once `ens` is live onchain: an ENSv2 subname record on the creator's Permissioned Resolver
+   * that resolves to the creator's (root name's) address. Absent on strategies saved before this.
+   */
+  ensRecord?: EnsRecord | null;
   tagline: string;
   prompt: string;
   spec: StrategySpec;
@@ -283,6 +288,20 @@ export interface Strategy {
   };
   /** The strategy's own published track record. */
   runs: Partial<Record<RunMode, RunMeta>>;
+}
+
+/** A strategy subname verified onchain (Sepolia ENSv2). */
+export interface EnsRecord {
+  /** The full subname, e.g. `global-growth.meera.eth`. */
+  name: string;
+  /** The address it resolves to: the creator wallet that owns the root name. */
+  address: string;
+  /** Permissioned Resolver holding the record. */
+  resolver: string;
+  /** Transaction that wrote the record. */
+  txHash: string;
+  chainId: 11155111;
+  verifiedAt: string;
 }
 
 export interface Position {

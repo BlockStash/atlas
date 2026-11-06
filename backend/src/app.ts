@@ -16,7 +16,11 @@ import { getAddress, isAddress, verifyMessage } from "ethers";
 import { z } from "zod";
 import { ProfileStore } from "./store.js";
 import type { ProfileRepository } from "./profile-repository.js";
-import { createEnsResolver, normalizedEnsName } from "./ens.js";
+import {
+  createEnsRecordReader,
+  createEnsResolver,
+  normalizedEnsName,
+} from "./ens.js";
 import { markets } from "./data.js";
 import {
   createPortfolioReader,
@@ -56,6 +60,10 @@ export interface AppOptions {
   worldIdFetch?: typeof fetch;
   store?: ProfileRepository;
   ensResolve?: (name: string) => Promise<string | null>;
+  /** Address + resolver lookup used to verify strategy subnames. */
+  ensRead?: (
+    name: string,
+  ) => Promise<{ address: string; resolver: string } | null>;
   passkeyRpId?: string;
   portfolioRead?: (address: string) => Promise<PortfolioSnapshot>;
   /** Inject an intent engine (tests). Defaults to a lazily created env-configured engine. */
@@ -616,6 +624,12 @@ export function createApp(options: AppOptions) {
       service: strategies,
       limit,
       production: options.production,
+      ensRead:
+        options.ensRead ??
+        createEnsRecordReader(
+          process.env.SEPOLIA_RPC_URL ||
+            "https://ethereum-sepolia-rpc.publicnode.com",
+        ),
       // Reads work signed out; a valid session adds the wallet's private strategies.
       viewer: async (res) => {
         const token = res.req.cookies[COOKIE] as string | undefined;

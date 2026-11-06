@@ -2,7 +2,16 @@
 import { useId } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AtSign, Copy, Eye, GitFork, Globe2, Lock, Users } from "lucide-react";
+import {
+  AtSign,
+  BadgeCheck,
+  Copy,
+  Eye,
+  GitFork,
+  Globe2,
+  Lock,
+  Users,
+} from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
 import { StrategyIconBadge } from "./icon";
 import {
@@ -122,11 +131,26 @@ export function VisibilityBadge({
 }
 
 /** ENS subname that identifies a strategy, e.g. global-ai-leaders.meera.eth. */
-export function EnsHandle({ ens }: { ens: string | null }) {
+export function EnsHandle({
+  ens,
+  record,
+}: {
+  ens: string | null;
+  /** The strategy's onchain record; the chip shows as verified when it matches `ens`. */
+  record?: Strategy["ensRecord"];
+}) {
   if (!ens) return null;
+  const live = record?.name === ens;
   return (
-    <span className="ens-chip handle" title={`${ens} · ENS subname (demo)`}>
-      <AtSign size={13} />
+    <span
+      className={`ens-chip handle ${live ? "verified" : ""}`}
+      title={
+        live
+          ? `${ens} · resolves to ${record!.address} on Sepolia (ENSv2)`
+          : `${ens} · reserved handle, not yet published onchain`
+      }
+    >
+      {live ? <BadgeCheck size={13} /> : <AtSign size={13} />}
       <span className="ens-chip-text">{ens}</span>
     </span>
   );
@@ -268,7 +292,7 @@ export function StrategyCard({
         </header>
         {(s.ens || s.forkedFrom) && (
           <div className="strategy-card-ids">
-            <EnsHandle ens={s.ens} />
+            <EnsHandle ens={s.ens} record={s.ensRecord} />
             {s.forkedFrom && (
               <span
                 className="strategy-card-fork"

@@ -473,6 +473,21 @@
   border: 1px solid #0000000e;
   background: #eef1f5;
 }
+:root[data-theme="light"] .card-pin {
+  color: #586f8e;
+}
+:root[data-theme="light"] .card-pin:hover {
+  background: #00000010;
+  color: #2f4a76;
+}
+:root[data-theme="light"] .card-pin.pinned {
+  color: #1449b7;
+  background: #4782ff27;
+}
+:root[data-theme="light"] .market-card.pinned,
+:root[data-theme="light"] .balance-card.pinned {
+  border-color: #4782ff67;
+}
 :root[data-theme="light"] .market-card:hover {
   background: #e8ecf1;
   border-color: #5984db59;
@@ -850,6 +865,18 @@
 :root[data-theme="light"] .strategy-ens-callout.linked {
   border-color: #4980ff40;
   background: linear-gradient(135deg, #4980ff10, #eef1f5);
+}
+:root[data-theme="light"] .strategy-ens-panel.live {
+  border-color: #43b59250;
+}
+:root[data-theme="light"] .ens-subname-slot {
+  border: 1px dashed #00000022;
+}
+:root[data-theme="light"] .ens-subname-warn {
+  color: #ba8526 !important;
+}
+:root[data-theme="light"] .ens-chip.handle.verified {
+  border-color: #43b59280;
 }
 :root[data-theme="light"] .strategy-card:hover {
   border-color: #5380eb50;
@@ -1331,6 +1358,22 @@
 :root[data-theme="light"] .ai-hint {
   color: #4d6180;
 }
+:root[data-theme="light"] .ai-idea-label {
+  color: #4d6180;
+}
+:root[data-theme="light"] .ai-idea-badge {
+  border: 1px solid #4782ff50;
+  background: #4782ff19;
+  color: #294576;
+}
+:root[data-theme="light"] .ai-idea-badge:hover,
+:root[data-theme="light"] .ai-idea-badge:focus-visible {
+  background: #4782ff30;
+  border-color: #4782ffa0;
+}
+:root[data-theme="light"] .ai-idea-dots i {
+  background: #5e769c50;
+}
 :root[data-theme="light"] .ai-results {
   border: 1px solid #4980ff3a;
   background: #f1f3f7f7;
@@ -1456,6 +1499,14 @@
   background: #ede4e780;
   color: #291416;
 }
+:root[data-theme="light"] .studio-page .studio-bubble.error {
+  border-color: #ff435750;
+  background: #ede4e780;
+  color: #291416;
+}
+:root[data-theme="light"] .studio-plan-loading {
+  color: #50617a;
+}
 :root[data-theme="light"] .run-card {
   background: #00000005;
 }
@@ -1467,4 +1518,142 @@
 }
 :root[data-theme="light"] .bt-skeleton {
   background: linear-gradient(90deg, #00000005, #0000000e, #00000005);
+}
+:root[data-theme="light"] .intent-deployed {
+  border: 1px solid #43b5926a;
+  background: #43b59219;
+  color: #479980;
+}
+:root[data-theme="light"] .intent-deployed strong {
+  color: var(--text, #131720);
+}
+:root[data-theme="light"] .intent-result {
+  background: #00000005;
+  border: 1px solid #0000000e;
+}
+:root[data-theme="light"] .intent-legs .gain strong {
+  color: #479980;
+}
+:root[data-theme="light"] .intent-legs .loss strong {
+  color: #b52b2b;
+}
+:root[data-theme="light"] .strategy-status.st-live,
+:root[data-theme="light"] .strategy-status.st-done {
+  border-color: #43b5926a;
+}
+:root[data-theme="light"] .strategy-status.st-live > svg,
+:root[data-theme="light"] .strategy-status.st-done > svg {
+  color: #479980;
+}
+:root[data-theme="light"] .strategy-status.st-bad {
+  border-color: #e84e4e6a;
+}
+:root[data-theme="light"] .strategy-status.st-bad > svg {
+  color: #b52b2b;
+}
+:root[data-theme="light"] .strategy-status em {
+  background: #4980ff27;
+}
+:root[data-theme="light"] .strategy-deployment {
+  border-top: 1px solid #0000000e;
+}
+:root[data-theme="light"] .strategy-feed li::before {
+  background: #00000010;
+}
+:root[data-theme="light"] .feed-dot {
+  background: #4980ff27;
+}
+:root[data-theme="light"] .strategy-feed li.ok .feed-dot {
+  background: #43b5922b;
+  color: #479980;
+}
+:root[data-theme="light"] .strategy-feed li.bad .feed-dot {
+  background: #e84e4e2b;
+  color: #b52b2b;
+}
+:root[data-theme="light"] .activity-alert {
+  background: #e84e4e19;
+  border: 1px solid #e84e4e50;
+  color: #9c2626;
+}
+:root[data-theme="light"] .activity-empty svg {
+  color: #391198;
+}
+:root[data-theme="light"] .pipe-track {
+  background: #00000012;
+}
+:root[data-theme="light"] .pipe-dot {
+  background: #eef0f3;
+  border: 2px solid #00000019;
+}
+:root[data-theme="light"] .pipe li.done b {
+  color: #111622;
+}
+:root[data-theme="light"] .pipe li.now .pipe-dot {
+  color: #1445b6;
+}
+:root[data-theme="light"] .pipe li.now b {
+  color: #111622;
+}
+:root[data-theme="light"] .pipe li.bad .pipe-dot {
+  color: #b52b2b;
+  background: #e84e4e21;
+}
+:root[data-theme="light"] .pipe li.bad small {
+  color: #9c2626;
+}
+:root[data-theme="light"] .outcome.gain {
+  background: #43b59219;
+  border: 1px solid #43b59250;
+}
+:root[data-theme="light"] .outcome.gain strong {
+  color: #479980;
+}
+:root[data-theme="light"] .outcome.loss {
+  background: #e84e4e16;
+  border: 1px solid #e84e4e50;
+}
+:root[data-theme="light"] .outcome.loss strong {
+  color: #b52b2b;
+}
+:root[data-theme="light"] .activity-drop {
+  border: 1px solid #00000010;
+  background: #00000005;
+}
+:root[data-theme="light"] .activity-drop[open] summary {
+  color: #111622;
+  border-bottom: 1px solid #0000000e;
+}
+:root[data-theme="light"] .activity-tx a {
+  background: #4980ff19;
+  border: 1px solid #4980ff40;
+}
+:root[data-theme="light"] .activity-tx a:hover {
+  background: #4980ff30;
+}
+:root[data-theme="light"] .arkiv-stats > div {
+  background: #00000005;
+  border: 1px solid #0000000e;
+}
+:root[data-theme="light"] .arkiv-life {
+  background: #00000005;
+  border: 1px solid #0000000e;
+}
+:root[data-theme="light"] .arkiv-life b {
+  color: #479980;
+}
+:root[data-theme="light"] .arkiv-bar {
+  background: #00000012;
+}
+:root[data-theme="light"] .arkiv-entity code {
+  color: #1a1e23;
+}
+:root[data-theme="light"] .arkiv-note svg {
+  color: #391198;
+}
+:root[data-theme="light"] .arkiv-fields > div {
+  border-top: 1px solid #0000000b;
+}
+:root[data-theme="light"] .arkiv-yes {
+  color: #479980;
 }
