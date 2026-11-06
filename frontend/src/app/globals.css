@@ -463,6 +463,35 @@ strong {
 .market-status.closed {
   color: #8895a8;
 }
+.hero h1.hero-title-long {
+  font-size: clamp(40px, 3.7vw, 60px);
+  letter-spacing: -2.5px;
+}
+.floating-strategy {
+  width: 164px;
+}
+.floating-strategy .strategy-flags {
+  font-size: 14px;
+  letter-spacing: 1px;
+  flex: 1;
+}
+.floating-strategy .strategy-live {
+  font-size: 9px;
+  letter-spacing: 0.6px;
+  color: var(--green);
+}
+.floating-strategy .strategy-name {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.3;
+}
+.floating-strategy p {
+  margin: 4px 0 8px;
+}
+.floating-strategy .strategy-return {
+  color: var(--green);
+  font-weight: 600;
+}
 .floating-usa {
   left: 0;
   top: 22%;
@@ -2091,6 +2120,48 @@ strong {
     background 0.2s,
     border 0.2s;
   min-width: 0;
+}
+.market-card {
+  cursor: pointer;
+}
+.market-card:focus-visible {
+  outline: 2px solid #8aaae5;
+  outline-offset: 2px;
+}
+.market-card-top .card-pin {
+  margin-left: auto;
+}
+.card-pin {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 6px;
+  color: #6a83a3;
+  opacity: 0.55;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    color 0.15s;
+}
+.market-card:hover .card-pin,
+.balance-card:hover .card-pin,
+.card-pin:focus-visible {
+  opacity: 1;
+}
+.card-pin:hover {
+  background: #ffffff12;
+  color: #c7d6ee;
+}
+.card-pin.pinned {
+  opacity: 1;
+  color: #8fb3ff;
+  background: #8fb3ff1f;
+}
+.market-card.pinned,
+.balance-card.pinned {
+  border-color: #8fb3ff52;
 }
 .market-card:hover {
   background: #17253a;
@@ -8089,6 +8160,61 @@ th:not(:first-child) {
 }
 .intent-page .intent-demo-banner {
   margin-bottom: 16px;
+}
+/* Atlas AI trade plans inside the strategy studio and on strategy pages. */
+.studio-page .studio-bubble.error {
+  border-color: #ff8a9640;
+  background: #43202c80;
+  color: #ffc2c8;
+}
+.studio-page .studio-bubble .intent-options {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.studio-page .studio-bubble .intent-option {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.studio-page .studio-bubble .intent-option input {
+  flex: 1;
+  min-width: 160px;
+}
+.studio-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.studio-plan > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.studio-plan > .btn {
+  align-self: flex-start;
+}
+.studio-plan-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8596af;
+  font-size: 13px;
+  padding: 18px 0;
+}
+.plan-runner {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.plan-runner > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.plan-runner > .strategy-perf-head {
+  margin-bottom: 0;
 }
 @media (max-width: 950px) {
   .intent-page .studio {

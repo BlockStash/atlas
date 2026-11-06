@@ -6,7 +6,7 @@ import "./globals.css";
 import "./theme-light.generated.css";
 import "./theme-light.css";
 export const metadata: Metadata = {
-  title: "Atlas — Global Markets. One Wallet.",
+  title: "Atlas — Smart Global Finance Strategy Platform",
   description:
     "One Wallet. Five Markets. One Global Portfolio. A wallet-native global investment experience.",
 };

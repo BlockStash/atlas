@@ -4,7 +4,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Bell,
-  Bot,
   ChevronDown,
   ExternalLink,
   Globe2,
@@ -36,7 +35,7 @@ const links = [
   { href: "/portfolio", label: "My portfolio", Icon: PieChart },
   { href: "/wallet", label: "Wallet", Icon: Wallet },
   { href: "/vault", label: "Atlas Vault", Icon: Landmark },
-  { href: "/intent", label: "Atlas AI trading", Icon: Bot },
+  // Atlas AI trading (/intent) is hidden from the menu; strategies run it via "Create with Atlas AI".
   { href: "/strategies", label: "Explore strategies", Icon: Compass },
   { href: "/strategies/mine", label: "My strategies", Icon: Layers },
 ];

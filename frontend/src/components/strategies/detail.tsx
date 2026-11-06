@@ -37,6 +37,13 @@ import {
   type Strategy,
 } from "@/lib/strategies";
 import { StrategyStudio } from "./studio";
+import { PlanRunner } from "@/components/intent/plan-runner";
+import {
+  describeEntry,
+  describeExit,
+  type EntryCondition,
+  type ExitCondition,
+} from "@/lib/intent/client";
 import { IconPicker, StrategyIconBadge } from "./icon";
 import {
   CreatorName,
@@ -312,6 +319,8 @@ export function StrategyDetailPage({ id }: { id: string }) {
 
         <div className="protocol-trading-layout strategy-detail-layout">
           <div className="strategy-detail-main">
+            {/* An Atlas AI trade plan runs through the intent engine: backtest, paper, signed deploy. */}
+            {s.spec.plan && <PlanRunner key={s.updatedAt} plan={s.spec.plan} />}
             <section className="panel strategy-perf">
               <div className="strategy-perf-head">
                 <h2>Performance</h2>
@@ -499,6 +508,48 @@ export function StrategyDetailPage({ id }: { id: string }) {
                 </pre>
               ) : (
                 <>
+                  {s.spec.plan && (
+                    <>
+                      <h3>Atlas AI trade plan</h3>
+                      <ul className="strategy-rules">
+                        <li>
+                          {s.spec.plan.intent.side === "BUY" ? "Buy" : "Sell"}{" "}
+                          {s.spec.plan.intent.asset.companyName} (
+                          {s.spec.plan.intent.asset.symbol}) ·{" "}
+                          {s.spec.plan.intent.allocation.type === "FIXED_USDT"
+                            ? `${s.spec.plan.intent.allocation.value} USDT`
+                            : `${s.spec.plan.intent.allocation.value}% of ${s.spec.plan.intent.allocation.type === "VAULT_PERCENT" ? "vault" : "portfolio"}`}
+                        </li>
+                        <li>
+                          Entry:{" "}
+                          {(
+                            s.spec.plan.intent
+                              .entryConditions as unknown as EntryCondition[]
+                          )
+                            .map((c) =>
+                              describeEntry(
+                                c,
+                                s.spec.plan!.intent.asset.market,
+                              ),
+                            )
+                            .join(" and ") || "when the market is open"}
+                        </li>
+                        <li>
+                          Exit:{" "}
+                          {(
+                            s.spec.plan.intent
+                              .exitConditions as unknown as ExitCondition[]
+                          )
+                            .map(describeExit)
+                            .join(" · ") || "none — hold"}
+                        </li>
+                        <li className="muted">
+                          Times in the plan count from when you run or deploy
+                          it.
+                        </li>
+                      </ul>
+                    </>
+                  )}
                   <h3>Allocation</h3>
                   <div className="strategy-alloc">
                     {s.spec.universe.map((a) => (
@@ -569,27 +620,31 @@ export function StrategyDetailPage({ id }: { id: string }) {
           </div>
 
           <aside className="strategy-side">
-            <RunPanel
-              s={s}
-              owner={owner}
-              account={wallet?.address}
-              onBacktest={async (capital) => {
-                const r = await store.runBacktest(s.id, capital);
-                if (!owner) setAdhoc(r);
-                else setAdhoc(null);
-                setMode("backtest");
-                toast(`Backtest complete: ${pct(r.totalReturn)} over 1 year.`);
-              }}
-              onStart={async (m, amount) => {
-                await store.start(s.id, m, amount);
-                setMode(owner ? m : active);
-                toast(
-                  m === "paper"
-                    ? "Paper trade started with virtual funds."
-                    : `Deployed ${usd(amount)} aUSDT (demo).`,
-                );
-              }}
-            />
+            {!s.spec.plan && (
+              <RunPanel
+                s={s}
+                owner={owner}
+                account={wallet?.address}
+                onBacktest={async (capital) => {
+                  const r = await store.runBacktest(s.id, capital);
+                  if (!owner) setAdhoc(r);
+                  else setAdhoc(null);
+                  setMode("backtest");
+                  toast(
+                    `Backtest complete: ${pct(r.totalReturn)} over 1 year.`,
+                  );
+                }}
+                onStart={async (m, amount) => {
+                  await store.start(s.id, m, amount);
+                  setMode(owner ? m : active);
+                  toast(
+                    m === "paper"
+                      ? "Paper trade started with virtual funds."
+                      : `Deployed ${usd(amount)} aUSDT (demo).`,
+                  );
+                }}
+              />
+            )}
             <section className="panel protocol-explainer strategy-economics">
               <h2>
                 <Coins size={17} /> Creator economics

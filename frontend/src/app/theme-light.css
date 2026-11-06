@@ -128,3 +128,27 @@
   border-color: color-mix(in srgb, var(--blue) 40%, transparent);
   background: color-mix(in srgb, var(--blue) 8%, transparent);
 }
+
+:root[data-theme="light"] .card-pin {
+  color: #50617a;
+}
+:root[data-theme="light"] .card-pin:hover {
+  background: #0000000d;
+  color: #1f3352;
+}
+:root[data-theme="light"] .card-pin.pinned {
+  color: #2f62c8;
+  background: #2f62c81a;
+}
+:root[data-theme="light"] .market-card.pinned,
+:root[data-theme="light"] .balance-card.pinned {
+  border-color: #2f62c866;
+}
+:root[data-theme="light"] .studio-page .studio-bubble.error {
+  border-color: #ff435750;
+  background: #ede4e780;
+  color: #291416;
+}
+:root[data-theme="light"] .studio-plan-loading {
+  color: #50617a;
+}

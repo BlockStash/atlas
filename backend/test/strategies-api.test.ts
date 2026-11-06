@@ -5,7 +5,7 @@ import { mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createApp } from "../src/app.js";
-import { generateSpec } from "../src/strategies/core.js";
+import { generateSpec, specFromPlan } from "../src/strategies/core.js";
 
 const origin = "http://localhost:3000";
 
@@ -284,4 +284,90 @@ test("demo reset clears only the caller's own work and positions", async () => {
   const names = reset.body.strategies.map((s: { name: string }) => s.name);
   assert.ok(!names.includes("A"));
   assert.ok(names.includes("B"));
+});
+
+test("an Atlas AI trade plan saves as a strategy, stays strictly validated and runs again", async () => {
+  const { alice, bob } = await setup();
+  const prompt =
+    "Buy Apple with 1,000 USDT now. Max slippage 0.5%. Sell at +8% or -3%.";
+  const parsed = await alice
+    .post("/api/intents/parse")
+    .set("Origin", origin)
+    .send({ prompt })
+    .expect(200);
+  assert.equal(parsed.body.status, "OK");
+  const i = parsed.body.intent;
+  // What the studio saves: the plan without identity, id or creation time.
+  const plan = {
+    schema: "atlas.intent/v1" as const,
+    anchor: Math.floor(Date.now() / 1000),
+    intent: {
+      version: i.version,
+      asset: i.asset,
+      side: i.side,
+      allocation: i.allocation,
+      entryConditions: i.entryConditions,
+      exitConditions: i.exitConditions,
+      constraints: i.constraints,
+      metadata: {
+        originalPrompt: i.metadata.originalPrompt,
+        defaultsApplied: i.metadata.defaultsApplied,
+        parser: i.metadata.parser,
+      },
+    },
+  };
+  const spec = specFromPlan(plan, parsed.body.evaluation.summary);
+  assert.equal(spec.universe[0]!.symbol, i.asset.symbol);
+  assert.equal(spec.risk.stopLossPct, 3);
+  assert.equal(spec.risk.takeProfitPct, 8);
+  const body = {
+    name: "Apple Entry Plan",
+    tagline: "Buy Apple, +8% / -3%",
+    prompt,
+    spec,
+    visibility: "public",
+  };
+  const created = await alice
+    .post("/api/strategies")
+    .set("Origin", origin)
+    .send(body)
+    .expect(201);
+  assert.deepEqual(created.body.spec.plan, plan);
+
+  // Others can open the public strategy and evaluate its plan with their own wallet.
+  const seen = await bob.get(`/api/strategies/${created.body.id}`).expect(200);
+  const run = await bob
+    .post("/api/intents/simulate")
+    .set("Origin", origin)
+    .send({
+      intent: {
+        ...seen.body.spec.plan.intent,
+        metadata: { ...seen.body.spec.plan.intent.metadata, createdAt: 0 },
+      },
+    })
+    .expect(200);
+  assert.equal(run.body.valid, true);
+
+  // Identity fields, unknown keys, or a plan that disagrees with the universe are refused.
+  for (const bad of [
+    { ...plan, intent: { ...plan.intent, userAddress: "0x0" } },
+    { ...plan, extra: true },
+    { ...plan, intent: { ...plan.intent, side: "HOLD" } },
+  ])
+    await alice
+      .post("/api/strategies")
+      .set("Origin", origin)
+      .send({ ...body, spec: { ...spec, plan: bad } })
+      .expect(400);
+  await alice
+    .post("/api/strategies")
+    .set("Origin", origin)
+    .send({
+      ...body,
+      spec: {
+        ...spec,
+        universe: [{ ...spec.universe[0]!, symbol: "MSFT", name: "Microsoft" }],
+      },
+    })
+    .expect(400);
 });

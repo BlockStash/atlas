@@ -82,6 +82,87 @@ export interface StrategySpec {
     cashBufferPct: number;
   };
   execution: { minDeployment: number; maxSlippageBps: number };
+  /**
+   * Executable Atlas AI trade plan from the intent engine (POST /api/intents/parse). When set,
+   * the strategy runs through Atlas AI trading: backtest, paper trade and signed deployment.
+   */
+  plan?: ExecutablePlan;
+}
+
+/** A parsed Atlas AI trade plan saved with a strategy. Identity, id and times are not stored. */
+export interface ExecutablePlan {
+  schema: "atlas.intent/v1";
+  /** Unix seconds the plan's absolute times were written against; each run shifts them forward. */
+  anchor: number;
+  intent: PlanIntent;
+}
+export interface PlanIntent {
+  version: "1";
+  asset: {
+    stockId: string;
+    symbol: string;
+    companyName: string;
+    market: string;
+    country: string;
+    currency: string;
+  };
+  side: "BUY" | "SELL";
+  allocation: { type: string; value: string };
+  entryConditions: ({ type: string } & Record<string, unknown>)[];
+  exitConditions: ({ type: string } & Record<string, unknown>)[];
+  constraints: Record<string, unknown>;
+  metadata: {
+    originalPrompt: string;
+    defaultsApplied: string[];
+    parser: "ai" | "rules" | "manual";
+  };
+}
+
+/** A strategy spec wrapping one Atlas AI trade plan: the asset at 100%, with the plan's exits. */
+export function specFromPlan(
+  plan: ExecutablePlan,
+  objective: string,
+): StrategySpec {
+  const i = plan.intent,
+    listed = bySymbol.get(i.asset.symbol.toUpperCase());
+  const bps = (type: string) => {
+    const c = i.exitConditions.find((e) => e.type === type);
+    return typeof c?.value === "number" ? c.value / 100 : null;
+  };
+  const slippage = i.constraints.maxSlippageBps;
+  const stopLossPct = bps("STOP_LOSS_BPS");
+  return {
+    schema: "atlas.strategy/v1",
+    objective: objective.trim().slice(0, 280),
+    riskProfile:
+      stopLossPct === null || stopLossPct > 10
+        ? "aggressive"
+        : stopLossPct <= 3
+          ? "conservative"
+          : "balanced",
+    baseCurrency: "aUSDT",
+    universe: [
+      {
+        symbol: listed?.symbol ?? i.asset.symbol,
+        name: listed?.name ?? i.asset.companyName,
+        market: listed?.market ?? "usa",
+        weight: 100,
+      },
+    ],
+    rebalance: { frequency: "monthly", driftTolerancePct: 5 },
+    rules: [],
+    risk: {
+      stopLossPct,
+      takeProfitPct: bps("TAKE_PROFIT_BPS"),
+      maxAssetWeightPct: 100,
+      cashBufferPct: 0,
+    },
+    execution: {
+      minDeployment: 1,
+      maxSlippageBps: typeof slippage === "number" ? slippage : 100,
+    },
+    plan,
+  };
 }
 
 // ───────────────────────────── Strategy records ─────────────────────────────
@@ -793,6 +874,17 @@ export function validateSpec(value: unknown): {
   if (!Array.isArray(s.rules)) return { error: "rules must be an array." };
   if (!s.risk || typeof s.risk.maxAssetWeightPct !== "number")
     return { error: "risk block is missing." };
+  if (s.plan !== undefined) {
+    const p = s.plan as ExecutablePlan;
+    if (!p || p.schema !== "atlas.intent/v1" || !p.intent?.asset?.symbol)
+      return { error: 'plan must be an "atlas.intent/v1" trade plan.' };
+    if (
+      s.universe.length !== 1 ||
+      String(s.universe[0]?.symbol).toUpperCase() !==
+        p.intent.asset.symbol.toUpperCase()
+    )
+      return { error: "A trade-plan strategy holds exactly its plan's asset." };
+  }
   return { spec: s };
 }
 

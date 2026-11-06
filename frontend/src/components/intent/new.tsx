@@ -972,7 +972,7 @@ export function NewIntentPage() {
   );
 }
 
-function M({ l, v }: { l: string; v: string }) {
+export function M({ l, v }: { l: string; v: string }) {
   return (
     <div className="intent-metric">
       <span>{l}</span>
@@ -981,7 +981,7 @@ function M({ l, v }: { l: string; v: string }) {
   );
 }
 
-function ClarifyOptions({
+export function ClarifyOptions({
   result,
   onPick,
 }: {
@@ -1114,7 +1114,7 @@ function Row({ k, v, warn }: { k: string; v: string; warn?: boolean }) {
 }
 
 /** Direct edits of the structured intent: allocation, slippage, entry price, take profit, stop loss, expiry. */
-function EditForm({
+export function EditForm({
   intent,
   onChange,
 }: {

@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import { useAtlas } from "@/components/atlas/provider";
 import { api } from "@/lib/api";
+import { readChainCache, writeChainCache } from "@/lib/chain-cache";
+import { usePins } from "@/lib/pins";
+import { CardPin } from "@/components/atlas/ui";
 import { AtlasTradesPanel } from "@/components/intent/trades";
 import {
   formatPortfolioAmount as amount,
@@ -21,11 +24,15 @@ import {
 } from "@/lib/portfolio";
 export function OnchainPortfolio({
   view = "portfolio",
+  pinnable = false,
 }: {
   view?: "portfolio" | "wallet";
+  /** Show pin / unpin on the balance cards (Overview). */
+  pinnable?: boolean;
 }) {
   const { wallet, ready } = useAtlas();
   const address = wallet?.address;
+  const balancePins = usePins("overview-balances", address);
   const [snapshot, setSnapshot] = useState<PortfolioSnapshot | null>(null),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -42,9 +49,11 @@ export function OnchainPortfolio({
     if (!ready || !address) return;
     let active = true,
       reading = false;
-    setSnapshot(null);
+    // Show the last snapshot read in this session right away, then refresh it from Sepolia.
+    const cached = readChainCache<PortfolioSnapshot>("portfolio", address);
+    setSnapshot(cached?.value ?? null);
     setError("");
-    setLoading(true);
+    setLoading(!cached);
     const load = async () => {
       if (!active || reading) return;
       reading = true;
@@ -61,6 +70,7 @@ export function OnchainPortfolio({
         if (active) {
           setSnapshot(data);
           setError("");
+          writeChainCache("portfolio", address, data);
         }
       } catch (e) {
         if (active)
@@ -264,8 +274,14 @@ export function OnchainPortfolio({
                   <Info size={13} />
                 </div>
               )}
-              {balances.map((b) => (
-                <section key={b.symbol} className="balance-card panel">
+              {(pinnable
+                ? balancePins.sort(balances, (b) => b.symbol)
+                : balances
+              ).map((b) => (
+                <section
+                  key={b.symbol}
+                  className={`balance-card panel ${pinnable && balancePins.isPinned(b.symbol) ? "pinned" : ""}`}
+                >
                   <div className="balance-card-heading">
                     <span className={`token-icon ${b.symbol.toLowerCase()}`}>
                       {b.icon}
@@ -275,6 +291,13 @@ export function OnchainPortfolio({
                       <span>{b.name}</span>
                     </div>
                     <span className="balance-demo">SEPOLIA</span>
+                    {pinnable && (
+                      <CardPin
+                        pinned={balancePins.isPinned(b.symbol)}
+                        label={`${b.symbol} balance`}
+                        onToggle={() => balancePins.toggle(b.symbol)}
+                      />
+                    )}
                   </div>
                   <div className="balance-value" title={b.raw}>
                     {amount(b.raw, b.decimals)}

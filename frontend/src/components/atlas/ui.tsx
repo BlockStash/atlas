@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ArrowUpRight, Globe2, ShieldCheck } from "lucide-react";
+import { ArrowUpRight, Globe2, Pin, PinOff, ShieldCheck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { markets } from "@/lib/data";
 import type { MarketPreference } from "@/lib/types";
@@ -89,6 +89,33 @@ export function GlobalMarketClock() {
     </div>
   );
 }
+/** Pin / unpin toggle for a card. Stops the click so the card itself doesn't open. */
+export function CardPin({
+  pinned,
+  label,
+  onToggle,
+}: {
+  pinned: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`card-pin ${pinned ? "pinned" : ""}`}
+      aria-pressed={pinned}
+      aria-label={`${pinned ? "Unpin" : "Pin"} ${label}`}
+      title={pinned ? "Unpin" : "Pin to top"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {pinned ? <PinOff size={13} /> : <Pin size={13} />}
+    </button>
+  );
+}
 export function MarketCard({
   market,
   onClick,
@@ -96,6 +123,8 @@ export function MarketCard({
   marketState,
   developmentOpen = false,
   developmentMode = false,
+  pinned,
+  onPin,
 }: {
   market: MarketPreference;
   onClick?: () => void;
@@ -103,14 +132,29 @@ export function MarketCard({
   marketState?: "open" | "closed" | "partial" | "unknown";
   developmentOpen?: boolean;
   developmentMode?: boolean;
+  /** Shows a pin toggle when provided. */
+  pinned?: boolean;
+  onPin?: () => void;
 }) {
+  // A div with button semantics, so the pin toggle can be a real nested button.
   return (
-    <button
-      className={`market-card ${selected ? "selected" : ""}`}
+    <div
+      role="button"
+      tabIndex={0}
+      className={`market-card ${selected ? "selected" : ""} ${pinned ? "pinned" : ""}`}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick?.();
+        }
+      }}
     >
       <div className="market-card-top">
         <span className="flag">{market.flag}</span>
+        {onPin && (
+          <CardPin pinned={!!pinned} label={market.name} onToggle={onPin} />
+        )}
         <span
           className={`market-status ${(developmentMode ? developmentOpen : marketState === "open" || market.id === "crypto") ? "" : "closed"}`}
         >
@@ -149,7 +193,7 @@ export function MarketCard({
         <MarketClock market={market} />
         <span>{market.currency}</span>
       </div>
-    </button>
+    </div>
   );
 }
 export function Ticker() {

@@ -20,6 +20,26 @@ import {
   type Visibility,
 } from "./core.js";
 import type { StrategyRepository } from "./repository.js";
+import { z } from "zod";
+import { strategySchema } from "../intent/types.js";
+import { MAX_PROMPT_CHARS } from "../intent/parser.js";
+
+/** A saved Atlas AI trade plan: exactly the intent engine's strategy schema, minus identity. */
+const planSchema = z
+  .object({
+    schema: z.literal("atlas.intent/v1"),
+    anchor: z.number().int().positive(),
+    intent: strategySchema.extend({
+      metadata: z
+        .object({
+          originalPrompt: z.string().max(MAX_PROMPT_CHARS),
+          defaultsApplied: z.array(z.string().max(40)).max(10),
+          parser: z.enum(["ai", "rules", "manual"]),
+        })
+        .strict(),
+    }),
+  })
+  .strict();
 
 export class StrategyError extends Error {
   constructor(
@@ -92,6 +112,15 @@ export class StrategyService {
         "INVALID_SPEC",
         "A strategy can have at most 25 rules.",
       );
+    if (spec.plan !== undefined) {
+      const plan = planSchema.safeParse(spec.plan);
+      if (!plan.success)
+        throw new StrategyError(
+          "INVALID_SPEC",
+          `The trade plan is invalid: ${plan.error.issues[0]?.message ?? "unknown error"}.`,
+        );
+      return { ...spec, plan: plan.data as StrategySpec["plan"] };
+    }
     return spec;
   }
   /** Visible to this viewer, or 404 — private strategies are never revealed to others. */
