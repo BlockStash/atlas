@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+**/*.tsbuildinfo
+**/*.sqlite
+**/*.sqlite-*
+backend/data
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/node_modules
+.git
+.DS_Store

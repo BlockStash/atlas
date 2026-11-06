@@ -1,0 +1,53 @@
+# Atlas: backend API, Next.js app and market-control admin.
+# Use scripts/docker.sh instead of calling this directly.
+name: atlas-app
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: atlas-backend:latest
+    env_file: backend/.env
+    environment:
+      PORT: "4000"
+      # The browser origin of the app. Must match how you open it.
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://127.0.0.1:3000}
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - atlas-data:/app/backend/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        BACKEND_URL: http://backend:4000
+        NEXT_PUBLIC_DEMO_WORLD_ID: ${NEXT_PUBLIC_DEMO_WORLD_ID:-false}
+        NEXT_PUBLIC_DEMO_WALLET: ${NEXT_PUBLIC_DEMO_WALLET:-false}
+        NEXT_PUBLIC_SEPOLIA_RPC_URL: ${NEXT_PUBLIC_SEPOLIA_RPC_URL:-https://ethereum-sepolia-rpc.publicnode.com}
+        NEXT_PUBLIC_INTENT_DEMO_MODE: ${NEXT_PUBLIC_INTENT_DEMO_MODE:-true}
+        NEXT_PUBLIC_ADMIN_URL: ${NEXT_PUBLIC_ADMIN_URL:-http://127.0.0.1:3001}
+    image: atlas-frontend:latest
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: .
+      dockerfile: admin/Dockerfile
+    image: atlas-admin:latest
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:80"
+    restart: unless-stopped
+
+volumes:
+  atlas-data:

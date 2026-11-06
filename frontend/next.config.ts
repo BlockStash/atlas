@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 const config: NextConfig = {
+  // Hides the floating Next.js "N" dev badge.
+  devIndicators: false,
   turbopack: { root: path.resolve(process.cwd()) },
   async rewrites() {
     return [
